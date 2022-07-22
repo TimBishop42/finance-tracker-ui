@@ -6,6 +6,7 @@ import { Grid, Button, FormControl, FormControlLabel, FormLabel, RadioGroup, Rad
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
+import SubmitResponse from './SubmitResponse';
 
 const defaultValues = {
     transactionCategory: "",
@@ -24,6 +25,14 @@ const StyledGrid = styled(Grid)(({ theme }) => ({
     color: 'white',
 }));
 
+const StyledSelect = styled(Select)(({ theme }) => ({
+    backgroundColor: '#282c34',
+    ...theme.typography.body2,
+    padding: theme.spacing(1),
+    textAlign: 'center',
+    color: 'white',
+}));
+
 
 const StyledTextArea = styled(TextField)(({ theme }) => ({
     backgroundColor: '#282c34',
@@ -35,8 +44,12 @@ const StyledTextArea = styled(TextField)(({ theme }) => ({
     border: { color: 'white' },
 }));
 
+
 export default function TransactionForm(props) {
     const [formValues, setFormValues] = useState(defaultValues);
+    const [submitted, setSubmitted] = useState(false);
+    const [submittionSuccess, setSubmissionSuccess] = useState(false);
+    const [submissionMessage, setSubmissionMessage] = useState("");
 
     const handleChange = (e) => {
         const { name, value } = e.target;
@@ -44,6 +57,7 @@ export default function TransactionForm(props) {
             ...formValues,
             [name]: value,
         });
+        setSubmitted(false);
     };
 
     const handleDateChange = (e) => {
@@ -52,7 +66,9 @@ export default function TransactionForm(props) {
             ...formValues,
             date: dateObj,
         });
+        setSubmitted(false);
     };
+
 
     const handleSubmit = (event) => {
         const transactionData = {
@@ -63,19 +79,28 @@ export default function TransactionForm(props) {
             essential: formValues.essential,
             // companyName: formValues.companyName
         }
-        console.log(transactionData);
         event.preventDefault();
         RestClient.post('/submit-transaction', transactionData)
             .then((response) => {
-                console.log(response);
+                setSubmitted(true);
+                setSubmissionSuccess(true);
             })
             .catch((error) => {
                 if (error.response) {
+                    setSubmitted(true);
+                    setSubmissionSuccess(false);
+                    setSubmissionMessage(error.response);
                     console.log(error.response);
                     console.log("server responded");
                 } else if (error.request) {
+                    setSubmitted(true);
+                    setSubmissionSuccess(false);
+                    setSubmissionMessage(error.response);
                     console.log("network error");
                 } else {
+                    setSubmitted(true);
+                    setSubmissionSuccess(false);
+                    setSubmissionMessage(error.response);
                     console.log(error);
                 };
             });
@@ -86,7 +111,7 @@ export default function TransactionForm(props) {
             <StyledGrid container alignItems="center" justify="center" direction="column">
                 <StyledGrid item>
                     <FormControl sx={{ m: 1, width: 150 }}>
-                        <Select
+                        <StyledSelect
                             id="transactionCategory"
                             name="transactionCategory"
                             label="transactionCategory"
@@ -99,7 +124,7 @@ export default function TransactionForm(props) {
                             {props.categories.map((category) => (
                                 <MenuItem key={category.categoryName} value={category.categoryName}>{category.categoryName}</MenuItem>
                             ))}
-                        </Select>
+                        </StyledSelect>
                     </FormControl>
                 </StyledGrid>
 
@@ -153,8 +178,7 @@ export default function TransactionForm(props) {
                             name="essential"
                             value={formValues.essential}
                             onChange={handleChange}
-                            row
-                        >
+                            row>
                             <FormControlLabel
                                 key="yes"
                                 value="true"
@@ -174,6 +198,7 @@ export default function TransactionForm(props) {
                     Submit
                 </Button>
             </StyledGrid>
-        </form>
+            <SubmitResponse submitSuccessful={submittionSuccess} submitResponse = {submissionMessage} submitted={submitted}/>
+        </form>  
     )
 }
