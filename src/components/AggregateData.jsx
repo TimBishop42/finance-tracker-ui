@@ -16,9 +16,7 @@ export default function Transactions() {
 
     return (
         <VictoryChart theme={VictoryTheme.material} width={800} domainPadding={10}>
-            <VictoryStack colorScale={["tomato", "orange", "gold", "white", "blue"]}>
         {aggregateData.map(vals => <VictoryBar data={vals.categoryValues} x="category" y="value" />)}
-        </VictoryStack>
         </VictoryChart>
     )
 }
