@@ -3,13 +3,17 @@ import './App.css';
 import React, {useState, useEffect} from 'react';
 import TransactionForm from './components/TransactionForm';
 import CategoryClient from './rest/CategoryClient';
-import Transactions from './components/Transactions';
+import TransactionData from './components/TransactionData';
+import {Button} from '@mui/material';
+import Stack from '@mui/material/Stack';
 
 
 
 function App() {
 
   const [categories, setCategories] = useState([]);
+
+  const [aggregateData, setAggregateData] = useState()
 
   useEffect(() => {
     CategoryClient.get('/get-categories').then((response) => {
@@ -24,8 +28,12 @@ function App() {
         <div class="Forms">
           <TransactionForm categories={categories}/>
         </div>
+        <Stack spacing={2} direction="row">
+        <Button variant="contained" onClick= {() => setAggregateData(false)} >Show All Transactions</Button>
+        <Button variant="contained" onClick= {() => setAggregateData(true)}>Show Aggregate Data</Button>
+        </Stack>
         <div class="transactions">
-          <Transactions/>
+        <TransactionData aggregateData={aggregateData}/>
         </div>
       </header>
     </div>

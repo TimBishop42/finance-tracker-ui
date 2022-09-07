@@ -2,15 +2,15 @@ import React, { useState } from 'react';
 import { styled } from '@mui/material/styles';
 import Paper from '@mui/material/Paper';
 import RestClient from '../rest/CategoryClient'
-import { Grid, Button, FormControl, FormControlLabel, FormLabel, RadioGroup, Radio, Select, MenuItem, TextField, OutlinedInput } from '@mui/material';
+import { Grid, Button, FormControl, FormControlLabel, FormLabel, RadioGroup, Radio, Select, MenuItem, TextField, OutlinedInput, InputBase } from '@mui/material';
 import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import SubmitResponse from './SubmitResponse';
 
 const defaultValues = {
-    transactionCategory: "",
-    amount: 0.0,
+    transactionCategory: "Category",
+    amount: "",
     date: new Date(),
     comments: "",
     companyName: "",
@@ -39,12 +39,12 @@ const StyledTextArea = styled(TextField)(({ theme }) => ({
     ...theme.typography.body2,
     padding: theme.spacing(1),
     textAlign: 'center',
+    color: 'white',
     input: { color: 'white' },
     label: { color: 'white' },
     border: { color: 'white' },
 }));
-
-
+ 
 export default function TransactionForm(props) {
     const [formValues, setFormValues] = useState(defaultValues);
     const [submitted, setSubmitted] = useState(false);
@@ -111,20 +111,21 @@ export default function TransactionForm(props) {
             <StyledGrid container alignItems="center" justify="center" direction="column">
                 <StyledGrid item>
                     <FormControl sx={{ m: 1, width: 150 }}>
-                        <StyledSelect
+                        <StyledTextArea
                             id="transactionCategory"
                             name="transactionCategory"
-                            label="transactionCategory"
+                            label="Category"
                             autoWidth
                             type="text"
+                            variant="outlined"
                             value={formValues.transactionCategory}
                             onChange={handleChange}
-                            input={<OutlinedInput label="Category" />}
+                            select
                         >
                             {props.categories.map((category) => (
                                 <MenuItem key={category.categoryName} value={category.categoryName}>{category.categoryName}</MenuItem>
                             ))}
-                        </StyledSelect>
+                        </StyledTextArea>
                     </FormControl>
                 </StyledGrid>
 
