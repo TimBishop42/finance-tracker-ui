@@ -1,6 +1,7 @@
 import RestClient from '../rest/CategoryClient';
 import React, { useState, useEffect } from 'react';
 import { VictoryBar, VictoryChart, VictoryTheme, VictoryStack, VictoryGroup, VictoryAxis, VictoryLabel } from 'victory';
+import { getByLabelText } from '@testing-library/react';
 
 export default function Transactions() {
 
@@ -23,6 +24,10 @@ export default function Transactions() {
             console.log(aggregateData);
         });
     }, []);
+
+    function getByLabel(val) {
+        return val.month +": " + val.value;
+    }
 
 
     return (
@@ -53,7 +58,7 @@ export default function Transactions() {
                         data={vals.categoryValues}
                         x="category"
                         y="value"
-                        labels={({ datum }) => `Amount: ${datum.value}`}
+                        labels={({ datum }) => `${getByLabel(datum)}`}
                         style={{
                             // data: { fill: "tomato", opacity: 0.7 },
                             labels: { fontSize: 14, fill: "white" },
