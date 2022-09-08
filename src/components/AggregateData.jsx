@@ -26,7 +26,7 @@ export default function Transactions() {
     }, []);
 
     function getByLabel(val) {
-        return val.month +": " + val.value;
+        return val.month +": " + val.intValue;
     }
 
 
