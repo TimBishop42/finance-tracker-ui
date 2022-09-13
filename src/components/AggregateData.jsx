@@ -1,6 +1,6 @@
 import RestClient from '../rest/CategoryClient';
 import React, { useState, useEffect } from 'react';
-import { VictoryBar, VictoryChart, VictoryTheme, VictoryStack, VictoryGroup, VictoryAxis, VictoryLabel } from 'victory';
+import { VictoryBar, VictoryChart, VictoryTheme, VictoryStack, VictoryGroup, VictoryAxis, VictoryLabel, VictoryZoomContainer } from 'victory';
 import { getByLabelText } from '@testing-library/react';
 
 export default function Transactions() {
@@ -26,12 +26,19 @@ export default function Transactions() {
     }, []);
 
     function getByLabel(val) {
-        return val.month +": " + val.intValue;
+        return val.month + ": " + val.intValue;
     }
 
 
     return (
-        <VictoryChart theme={VictoryTheme.material} width={1100} height={2000} domainPadding={20}>
+        <VictoryChart
+            theme={VictoryTheme.material}
+            width={1100}
+            height={2000}
+            domainPadding={20}
+            padding = {{ left: 100, right: 100, top: 100, bottom: 100}}
+            // containerComponent={<VictoryZoomContainer />}
+            >
             <VictoryAxis
                 tickLabelComponent={<VictoryLabel dy={0} dx={10} angle={55} />}
                 style={{
