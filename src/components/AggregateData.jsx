@@ -34,9 +34,9 @@ export default function Transactions() {
         <VictoryChart
             theme={VictoryTheme.material}
             width={1100}
-            height={2000}
+            height={2500}
             domainPadding={20}
-            padding = {{ left: 100, right: 100, top: 100, bottom: 100}}
+            padding = {{ left: 100, right: 150, top: 100, bottom: 100}}
             // containerComponent={<VictoryZoomContainer />}
             >
             <VictoryAxis
