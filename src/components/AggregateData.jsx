@@ -1,7 +1,8 @@
 import RestClient from '../rest/CategoryClient';
 import React, { useState, useEffect } from 'react';
 import { VictoryBar, VictoryChart, VictoryTheme, VictoryStack, VictoryGroup, VictoryAxis, VictoryLabel, VictoryZoomContainer } from 'victory';
-import { getByLabelText } from '@testing-library/react';
+import Box from '@mui/material/Box';
+import { styled } from '@mui/material/styles';
 
 export default function Transactions() {
 
@@ -18,6 +19,32 @@ export default function Transactions() {
         },
     };
 
+    const TotalBox = styled(Box)(({ theme, bgcolor }) => ({
+        padding: theme.spacing(2),
+        margin: theme.spacing(1),
+        textAlign: 'center',
+        color: theme.palette.getContrastText(bgcolor),
+        backgroundColor: bgcolor,
+        border: '1px solid',
+        borderColor: theme.palette.divider,
+        borderRadius: theme.shape.borderRadius,
+        boxShadow: theme.shadows[1],
+        minWidth: '150px',
+      }));
+      
+      const getColor = (total) => {
+        if (total <= 9000) return 'rgb(0, 255, 0)'; // Green in rgb format
+        if (total >= 12000) return 'rgb(255, 0, 0)'; // Red in rgb format
+        console.log("Total is: "+total)
+      
+        // Calculate the gradient color between green and red
+        const red = Math.min(255, Math.floor(255 * (total - 9000) / 3000));
+        const green = Math.max(0, 255 - red);
+        console.log("Colour is: redscale: "+red+" greenscale: "+ green)
+        return `rgb(${red}, ${green}, 0)`;
+      };
+      
+
     useEffect(() => {
         RestClient.get('/get-summary-months').then((response) => {
             setAggregateData(response.data);
@@ -31,13 +58,30 @@ export default function Transactions() {
 
 
     return (
+        <Box>
+        <Box
+      display="flex"
+      justifyContent="center"
+      flexWrap="wrap"
+      gap={2}
+      sx={{ marginTop: 4 }}
+    >
+      {aggregateData.map((item, index) => (
+        <TotalBox key={index} bgcolor={getColor(item.totalMonthlySpend)}>
+          {item.month}: {item.totalMonthlySpend}
+        </TotalBox>
+      ))}
+    </Box>
+
+      
+    <Box mt={4} mb={4} display="flex" justifyContent="center">
         <VictoryChart
             theme={VictoryTheme.material}
             width={1100}
             height={3500}
             domainPadding={20}
             padding = {{ left: 100, right: 150, top: 100, bottom: 100}}
-            // containerComponent={<VictoryZoomContainer />}
+            // containerComponent={<VictoryZoomContainer responsive={true} />}
             >
             <VictoryAxis
                 tickLabelComponent={<VictoryLabel dy={0} dx={10} angle={55} />}
@@ -74,5 +118,7 @@ export default function Transactions() {
                     />)}
             </VictoryGroup>
         </VictoryChart>
+        </Box>
+        </Box>
     )
 }
