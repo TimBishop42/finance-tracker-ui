@@ -7,6 +7,6 @@ export default function TransactionData(props) {
         return <AggregateData/>
     }
     else {
-        return <Transactions/>
+        return <Transactions categories={props.categories}/>
     }
 }

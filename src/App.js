@@ -33,7 +33,7 @@ function App() {
         <Button variant="contained" onClick= {() => setAggregateData(true)}>Show Aggregate Data</Button>
         </Stack>
         <div class="transactions">
-        <TransactionData aggregateData={aggregateData}/>
+        <TransactionData aggregateData={aggregateData} categories={categories}/>
         </div>
       </header>
     </div>

@@ -5,19 +5,56 @@ import TableBody from '@mui/material/TableBody';
 import TableCell from '@mui/material/TableCell';
 import TableContainer from '@mui/material/TableContainer';
 import Paper from '@mui/material/Paper';
-import { TableHead, TableRow } from '@mui/material';
+import { TableHead, TableRow, Button, Select, MenuItem, FormControl, InputLabel  } from '@mui/material';
 
-export default function Transactions() {
+export default function Transactions(props) {
 
     const [transactions, setTransactions] = useState([]);
+    const [recentMonthOnly, setRecentMonthOnly] = useState(false);
+    const [categoryFilter, setCategoryFilter] = useState('');
 
     useEffect(() => {
-        RestClient.get('/find-all-transactions').then((response) => {
+        const endpoint = `/find-all-transactions?recentMonth=${recentMonthOnly}`;
+        RestClient.get(endpoint).then((response) => {
             setTransactions([].concat(response.data).sort((a, b) => a.transactionDateTime > b.transactionDateTime ? -1 : 1));
         });
-    }, []);
+    }, [recentMonthOnly]);
+
+    const handleButtonClick = () => {
+        setRecentMonthOnly(!recentMonthOnly);
+      };
+
+      const handleCategoryFilterChange = (event) => {
+        setCategoryFilter(event.target.value);
+      };
+
+      const filteredTransactions = transactions.filter((transaction) =>
+      categoryFilter === '' || transaction.category === categoryFilter
+  );
 
     return (
+        <Paper>
+            <Button variant="contained" onClick={handleButtonClick}>
+        {recentMonthOnly ? 'Show All Transactions' : 'Show Recent Month Transactions'}
+      </Button>
+      <FormControl variant="outlined" style={{ marginBottom: '1rem', minWidth: 200 }}>
+        <InputLabel id="category-label">Category</InputLabel>
+        <Select
+          labelId="category-label"
+          value={categoryFilter}
+          onChange={handleCategoryFilterChange}
+          label="Category"
+        >
+          <MenuItem value="">
+            <em>All</em>
+          </MenuItem>
+          {props.categories.map((category) => (
+            <MenuItem key={category.categoryName} value={category.categoryName}>
+              {category.categoryName}
+            </MenuItem>
+          ))}
+        </Select>
+      </FormControl>
         <TableContainer component={Paper}>
             <Table size="small">
                 <TableHead>
@@ -29,7 +66,7 @@ export default function Transactions() {
                     </TableRow>
                 </TableHead>
                 <TableBody>
-                    {transactions.map((row) => (
+                    {filteredTransactions.map((row) => (
                         <TableRow
                             key={row.transactionId}
                             sx={{ '&:last-child td, &:last-child th': { border: 0 } }}
@@ -43,5 +80,6 @@ export default function Transactions() {
                 </TableBody>
             </Table>
         </TableContainer>
+        </Paper>
     )
 }
