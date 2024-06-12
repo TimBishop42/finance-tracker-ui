@@ -5,7 +5,7 @@ import TableBody from '@mui/material/TableBody';
 import TableCell from '@mui/material/TableCell';
 import TableContainer from '@mui/material/TableContainer';
 import Paper from '@mui/material/Paper';
-import { TableHead, TableRow, Button, Select, MenuItem, FormControl, InputLabel  } from '@mui/material';
+import { Box, TableHead, TableRow, Button, Select, MenuItem, FormControl, InputLabel  } from '@mui/material';
 
 export default function Transactions(props) {
 
@@ -34,8 +34,13 @@ export default function Transactions(props) {
 
     return (
         <Paper>
+           <Box 
+      display="flex" 
+      flexDirection="column" 
+      gap={2}  // Use gap for spacing between children (this is in the theme's spacing unit, e.g., 8px)
+    >
             <Button variant="contained" onClick={handleButtonClick}>
-        {recentMonthOnly ? 'Show All Transactions' : 'Show Recent Month Transactions'}
+        {recentMonthOnly ? 'Show Recent Year Transactions' : 'Show Recent Month Transactions'}
       </Button>
       <FormControl variant="outlined" style={{ marginBottom: '1rem', minWidth: 200 }}>
         <InputLabel id="category-label">Category</InputLabel>
@@ -55,6 +60,7 @@ export default function Transactions(props) {
           ))}
         </Select>
       </FormControl>
+      </Box>
         <TableContainer component={Paper}>
             <Table size="small">
                 <TableHead>
