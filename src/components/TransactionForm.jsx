@@ -43,6 +43,19 @@ const StyledTextArea = styled(TextField)(({ theme }) => ({
     input: { color: 'white' },
     label: { color: 'white' },
     border: { color: 'white' },
+    '& .MuiSelect-select': {
+        color: 'white',
+    },
+    '& .MuiMenuItem-root': {
+        color: 'white',
+        backgroundColor: '#282c34',
+        '&:hover': {
+            backgroundColor: '#3a3f4b',
+        },
+    },
+    '& .MuiPaper-root': {
+        backgroundColor: '#282c34',
+    },
 }));
  
 export default function TransactionForm(props) {
@@ -123,7 +136,9 @@ export default function TransactionForm(props) {
                             select
                         >
                             {props.categories.map((category) => (
-                                <MenuItem key={category.categoryName} value={category.categoryName}>{category.categoryName}</MenuItem>
+                                <MenuItem key={category.categoryName} value={category.categoryName}>
+                                    {category.categoryName}
+                                </MenuItem>
                             ))}
                         </StyledTextArea>
                     </FormControl>

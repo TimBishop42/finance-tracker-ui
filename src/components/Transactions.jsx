@@ -5,13 +5,14 @@ import TableBody from '@mui/material/TableBody';
 import TableCell from '@mui/material/TableCell';
 import TableContainer from '@mui/material/TableContainer';
 import Paper from '@mui/material/Paper';
-import { Box, TableHead, TableRow, Button, Select, MenuItem, FormControl, InputLabel  } from '@mui/material';
+import { Box, TableHead, TableRow, Button, Select, MenuItem, FormControl, InputLabel, TextField } from '@mui/material';
 
 export default function Transactions(props) {
 
     const [transactions, setTransactions] = useState([]);
     const [recentMonthOnly, setRecentMonthOnly] = useState(false);
     const [categoryFilter, setCategoryFilter] = useState('');
+    const [commentFilter, setCommentFilter] = useState('');
 
     useEffect(() => {
         const endpoint = `/find-all-transactions?recentMonth=${recentMonthOnly}`;
@@ -28,9 +29,16 @@ export default function Transactions(props) {
         setCategoryFilter(event.target.value);
       };
 
-      const filteredTransactions = transactions.filter((transaction) =>
-      categoryFilter === '' || transaction.category === categoryFilter
-  );
+      const handleCommentFilterChange = (event) => {
+        setCommentFilter(event.target.value);
+      };
+
+      const filteredTransactions = transactions.filter((transaction) => {
+        const matchesCategory = categoryFilter === '' || transaction.category === categoryFilter;
+        const matchesComment = commentFilter === '' || 
+            (transaction.comment && transaction.comment.toLowerCase().includes(commentFilter.toLowerCase()));
+        return matchesCategory && matchesComment;
+    });
 
     return (
         <Paper>
@@ -60,6 +68,13 @@ export default function Transactions(props) {
           ))}
         </Select>
       </FormControl>
+      <TextField
+        label="Search Comments"
+        variant="outlined"
+        value={commentFilter}
+        onChange={handleCommentFilterChange}
+        style={{ marginBottom: '1rem' }}
+      />
       </Box>
         <TableContainer component={Paper}>
             <Table size="small">
