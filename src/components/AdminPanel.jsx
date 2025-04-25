@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Box, 
-  Button, 
-  TextField, 
-  List, 
-  ListItem, 
+import {
+  Box,
+  Button,
+  TextField,
+  List,
+  ListItem,
   ListItemText,
   Dialog,
   DialogTitle,
@@ -32,7 +32,7 @@ export default function AdminPanel({ open, onClose }) {
 
   const handleAddCategory = () => {
     if (newCategory.trim()) {
-      RestClient.post('/saveCategory', { categoryName: newCategory.trim() })
+      RestClient.post('/add-category', { categoryName: newCategory.trim() })
         .then(() => {
           loadCategories();
           setNewCategory('');
@@ -45,8 +45,8 @@ export default function AdminPanel({ open, onClose }) {
   };
 
   return (
-    <Dialog 
-      open={open} 
+    <Dialog
+      open={open}
       onClose={onClose}
       maxWidth="sm"
       fullWidth
@@ -67,14 +67,14 @@ export default function AdminPanel({ open, onClose }) {
       </DialogTitle>
       <DialogContent>
         <Box sx={{ mt: 2 }}>
-          <Button 
-            variant="contained" 
+          <Button
+            variant="contained"
             onClick={() => setOpenDialog(true)}
             sx={{ mb: 2 }}
           >
             Add New Category
           </Button>
-          
+
           <List>
             {categories.map((category) => (
               <ListItem key={category.categoryName}>
