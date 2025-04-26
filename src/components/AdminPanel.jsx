@@ -32,7 +32,7 @@ export default function AdminPanel({ open, onClose }) {
 
   const handleAddCategory = () => {
     if (newCategory.trim()) {
-      RestClient.post('/add-category', { categoryName: newCategory.trim() })
+      RestClient.post('/add-category', newCategory.trim())
         .then(() => {
           loadCategories();
           setNewCategory('');
