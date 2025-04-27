@@ -14,11 +14,13 @@ import {
 } from '@mui/material';
 import RestClient from '../rest/CategoryClient';
 import CloseIcon from '@mui/icons-material/Close';
+import DeleteIcon from '@mui/icons-material/Delete';
 
 export default function AdminPanel({ open, onClose }) {
   const [categories, setCategories] = useState([]);
   const [newCategory, setNewCategory] = useState('');
   const [openDialog, setOpenDialog] = useState(false);
+  const [deleteDialog, setDeleteDialog] = useState({ open: false, category: null });
 
   useEffect(() => {
     loadCategories();
@@ -42,6 +44,17 @@ export default function AdminPanel({ open, onClose }) {
           console.error('Error saving category:', error);
         });
     }
+  };
+
+  const handleDeleteCategory = (categoryName) => {
+    RestClient.post('/delete-category', { categoryName: categoryName })
+      .then(() => {
+        loadCategories();
+        setDeleteDialog({ open: false, category: null });
+      })
+      .catch(error => {
+        console.error('Error deleting category:', error);
+      });
   };
 
   return (
@@ -79,6 +92,12 @@ export default function AdminPanel({ open, onClose }) {
             {categories.map((category) => (
               <ListItem key={category.categoryName}>
                 <ListItemText primary={category.categoryName} />
+                <IconButton 
+                  onClick={() => setDeleteDialog({ open: true, category: category.categoryName })}
+                  color="error"
+                >
+                  <DeleteIcon />
+                </IconButton>
               </ListItem>
             ))}
           </List>
@@ -100,6 +119,17 @@ export default function AdminPanel({ open, onClose }) {
         <DialogActions>
           <Button onClick={() => setOpenDialog(false)}>Cancel</Button>
           <Button onClick={handleAddCategory} variant="contained">Add</Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={deleteDialog.open} onClose={() => setDeleteDialog({ open: false, category: null })}>
+        <DialogTitle>Delete Category</DialogTitle>
+        <DialogContent>
+          Are you sure you want to delete "{deleteDialog.category}"?
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteDialog({ open: false, category: null })}>Cancel</Button>
+          <Button onClick={() => handleDeleteCategory(deleteDialog.category)} color="error">Delete</Button>
         </DialogActions>
       </Dialog>
     </Dialog>
