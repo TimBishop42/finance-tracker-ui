@@ -5,7 +5,8 @@ import TableBody from '@mui/material/TableBody';
 import TableCell from '@mui/material/TableCell';
 import TableContainer from '@mui/material/TableContainer';
 import Paper from '@mui/material/Paper';
-import { Box, TableHead, TableRow, Button, Select, MenuItem, FormControl, InputLabel, TextField } from '@mui/material';
+import { Box, TableHead, TableRow, Button, Select, MenuItem, FormControl, InputLabel, TextField, IconButton, Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material';
+import DeleteIcon from '@mui/icons-material/Delete';
 
 export default function Transactions(props) {
 
@@ -13,6 +14,7 @@ export default function Transactions(props) {
     const [recentMonthOnly, setRecentMonthOnly] = useState(false);
     const [categoryFilter, setCategoryFilter] = useState('');
     const [commentFilter, setCommentFilter] = useState('');
+    const [deleteDialog, setDeleteDialog] = useState({ open: false, transactionId: null });
 
     useEffect(() => {
         const endpoint = `/find-all-transactions?recentMonth=${recentMonthOnly}`;
@@ -33,7 +35,26 @@ export default function Transactions(props) {
         setCommentFilter(event.target.value);
       };
 
-      const filteredTransactions = transactions.filter((transaction) => {
+      const handleDeleteClick = (transactionId) => {
+        setDeleteDialog({ open: true, transactionId });
+    };
+
+    const handleDeleteConfirm = () => {
+        RestClient.post('/delete-transaction', { transactionId: deleteDialog.transactionId })
+            .then(() => {
+                // Refresh the transactions list
+                const endpoint = `/find-all-transactions?recentMonth=${recentMonthOnly}`;
+                RestClient.get(endpoint).then((response) => {
+                    setTransactions([].concat(response.data).sort((a, b) => a.transactionDateTime > b.transactionDateTime ? -1 : 1));
+                });
+                setDeleteDialog({ open: false, transactionId: null });
+            })
+            .catch(error => {
+                console.error('Error deleting transaction:', error);
+            });
+    };
+
+    const filteredTransactions = transactions.filter((transaction) => {
         const matchesCategory = categoryFilter === '' || transaction.category === categoryFilter;
         const matchesComment = commentFilter === '' || 
             (transaction.comment && transaction.comment.toLowerCase().includes(commentFilter.toLowerCase()));
@@ -84,6 +105,7 @@ export default function Transactions(props) {
                         <TableCell>Amount</TableCell>
                         <TableCell>Date</TableCell>
                         <TableCell>Comment</TableCell>
+                        <TableCell>Actions</TableCell>
                     </TableRow>
                 </TableHead>
                 <TableBody>
@@ -96,11 +118,31 @@ export default function Transactions(props) {
                             <TableCell>{row.amount}</TableCell>
                             <TableCell>{row.transactionDate}</TableCell>
                             <TableCell>{row.comment}</TableCell>
+                            <TableCell>
+                                <IconButton 
+                                    onClick={() => handleDeleteClick(row.transactionId)}
+                                    color="error"
+                                    size="small"
+                                >
+                                    <DeleteIcon />
+                                </IconButton>
+                            </TableCell>
                         </TableRow>
                     ))}
                 </TableBody>
             </Table>
         </TableContainer>
+
+        <Dialog open={deleteDialog.open} onClose={() => setDeleteDialog({ open: false, transactionId: null })}>
+            <DialogTitle>Delete Transaction</DialogTitle>
+            <DialogContent>
+                Are you sure you want to delete this transaction?
+            </DialogContent>
+            <DialogActions>
+                <Button onClick={() => setDeleteDialog({ open: false, transactionId: null })}>Cancel</Button>
+                <Button onClick={handleDeleteConfirm} color="error">Delete</Button>
+            </DialogActions>
+        </Dialog>
         </Paper>
     )
 }
