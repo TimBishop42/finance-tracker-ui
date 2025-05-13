@@ -26,10 +26,11 @@ export default function TransactionUploader({ open, onClose }) {
   const [transactions, setTransactions] = useState([]);
   const [categories, setCategories] = useState([]);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [stage, setStage] = useState(1); // 1 for upload, 2 for review
 
   // Load categories when component mounts
   React.useEffect(() => {
-    RestClient.get('/get-categories')
+    RestClient.get('/finance/get-categories')
       .then(response => setCategories(response.data))
       .catch(error => console.error('Error loading categories:', error));
   }, []);
@@ -47,14 +48,13 @@ export default function TransactionUploader({ open, onClose }) {
             // Take only first 3 columns, ignore the rest
             const [date, amount, description] = columns;
             return {
-              date: date.trim(),
-              amount: Math.abs(parseFloat(amount.replace(/"/g, ''))), // Remove quotes and convert
-              description: description.trim(),
-              category: '',
-              comment: ''
+              transactionDate: new Date(date.trim().split('/').reverse().join('-')).toISOString(), // Convert DD/MM/YYYY to ISO
+              transactionAmount: Math.abs(parseFloat(amount.replace(/"/g, ''))), // Remove quotes and convert
+              transactionBusiness: description.trim()
             };
           });
         setTransactions(rows);
+        setStage(2); // Move to review stage
       };
       reader.readAsText(file);
     }
@@ -62,7 +62,7 @@ export default function TransactionUploader({ open, onClose }) {
 
   const handleCategoryChange = (index, category) => {
     const updatedTransactions = [...transactions];
-    updatedTransactions[index].category = category;
+    updatedTransactions[index].userCorrectedCategory = category;
     setTransactions(updatedTransactions);
   };
 
@@ -81,20 +81,39 @@ export default function TransactionUploader({ open, onClose }) {
   const handleSubmit = () => {
     setIsProcessing(true);
     const formattedTransactions = transactions.map(t => ({
-      category: t.category,
-      amount: t.amount,
-      transactionDate: new Date(t.date.split('/').reverse().join('-')).getTime(), // Convert DD/MM/YYYY to timestamp
+      category: t.userCorrectedCategory || t.predictedCategory,
+      amount: t.transactionAmount,
+      transactionDate: new Date(t.transactionDate).getTime(),
       comment: t.comment,
       essential: false // Default value
     }));
 
-    RestClient.post('/submit-transaction-batch', { transactionJsonList: formattedTransactions })
+    RestClient.post('/finance/submit-transaction-batch', { transactionJsonList: formattedTransactions })
       .then(response => {
         console.log('Batch submitted:', response.data);
         onClose();
       })
       .catch(error => {
         console.error('Error submitting batch:', error);
+      })
+      .finally(() => {
+        setIsProcessing(false);
+      });
+  };
+
+  const handlePredictCategories = () => {
+    setIsProcessing(true);
+    RestClient.post('/transactions/predict-batch', transactions)
+      .then(response => {
+        const categorizedTransactions = response.data.map((cat, index) => ({
+          ...transactions[index],
+          predictedCategory: cat.predictedCategory,
+          confidenceScore: cat.confidenceScore
+        }));
+        setTransactions(categorizedTransactions);
+      })
+      .catch(error => {
+        console.error('Error predicting categories:', error);
       })
       .finally(() => {
         setIsProcessing(false);
@@ -115,78 +134,87 @@ export default function TransactionUploader({ open, onClose }) {
       </DialogTitle>
       <DialogContent>
         <Box sx={{ mt: 2 }}>
-          <input
-            accept=".csv"
-            type="file"
-            onChange={handleFileUpload}
-            style={{ marginBottom: '20px' }}
-          />
-          
-          {transactions.length > 0 && (
-            <TableContainer component={Paper}>
-              <Table>
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Date</TableCell>
-                    <TableCell>Amount</TableCell>
-                    <TableCell>Description</TableCell>
-                    <TableCell>Category</TableCell>
-                    <TableCell>Comment</TableCell>
-                    <TableCell>Actions</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {transactions.map((transaction, index) => (
-                    <TableRow key={index}>
-                      <TableCell>{transaction.date}</TableCell>
-                      <TableCell>{transaction.amount}</TableCell>
-                      <TableCell>{transaction.description}</TableCell>
-                      <TableCell>
-                        <Select
-                          value={transaction.category}
-                          onChange={(e) => handleCategoryChange(index, e.target.value)}
-                          fullWidth
-                        >
-                          {categories.map((cat) => (
-                            <MenuItem key={cat.categoryName} value={cat.categoryName}>
-                              {cat.categoryName}
-                            </MenuItem>
-                          ))}
-                        </Select>
-                      </TableCell>
-                      <TableCell>
-                        <TextField
-                          value={transaction.comment}
-                          onChange={(e) => handleCommentChange(index, e.target.value)}
-                          fullWidth
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <IconButton 
-                          onClick={() => handleExcludeTransaction(index)}
-                          color="error"
-                          size="small"
-                        >
-                          <DeleteIcon />
-                        </IconButton>
-                      </TableCell>
+          {stage === 1 ? (
+            <input
+              accept=".csv"
+              type="file"
+              onChange={handleFileUpload}
+              style={{ marginBottom: '20px' }}
+            />
+          ) : (
+            <>
+              <Button onClick={handlePredictCategories} disabled={isProcessing}>
+                Predict Categories
+              </Button>
+              <TableContainer component={Paper}>
+                <Table>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Date</TableCell>
+                      <TableCell>Amount</TableCell>
+                      <TableCell>Description</TableCell>
+                      <TableCell>Predicted Category</TableCell>
+                      <TableCell>User Corrected Category</TableCell>
+                      <TableCell>Comment</TableCell>
+                      <TableCell>Actions</TableCell>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
+                  </TableHead>
+                  <TableBody>
+                    {transactions.map((transaction, index) => (
+                      <TableRow key={index}>
+                        <TableCell>{new Date(transaction.transactionDate).toLocaleDateString()}</TableCell>
+                        <TableCell>{transaction.transactionAmount}</TableCell>
+                        <TableCell>{transaction.transactionBusiness}</TableCell>
+                        <TableCell>{transaction.predictedCategory}</TableCell>
+                        <TableCell>
+                          <Select
+                            value={transaction.userCorrectedCategory || ''}
+                            onChange={(e) => handleCategoryChange(index, e.target.value)}
+                            fullWidth
+                          >
+                            {categories.map((cat) => (
+                              <MenuItem key={cat.categoryName} value={cat.categoryName}>
+                                {cat.categoryName}
+                              </MenuItem>
+                            ))}
+                          </Select>
+                        </TableCell>
+                        <TableCell>
+                          <TextField
+                            value={transaction.comment || ''}
+                            onChange={(e) => handleCommentChange(index, e.target.value)}
+                            fullWidth
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <IconButton 
+                            onClick={() => handleExcludeTransaction(index)}
+                            color="error"
+                            size="small"
+                          >
+                            <DeleteIcon />
+                          </IconButton>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            </>
           )}
         </Box>
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose}>Cancel</Button>
-        <Button 
-          onClick={handleSubmit} 
-          variant="contained" 
-          disabled={isProcessing || transactions.some(t => !t.category)}
-        >
-          Submit Batch
-        </Button>
+        {stage === 2 && (
+          <Button 
+            onClick={handleSubmit} 
+            variant="contained" 
+            disabled={isProcessing || transactions.some(t => !t.userCorrectedCategory && !t.predictedCategory)}
+          >
+            Submit Batch
+          </Button>
+        )}
       </DialogActions>
     </Dialog>
   );

@@ -93,7 +93,7 @@ export default function TransactionForm(props) {
             // companyName: formValues.companyName
         }
         event.preventDefault();
-        RestClient.post('/submit-transaction', transactionData)
+        RestClient.post('/finance/submit-transaction', transactionData)
             .then((response) => {
                 setSubmitted(true);
                 setSubmissionSuccess(true);

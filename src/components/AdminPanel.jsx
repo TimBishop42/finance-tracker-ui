@@ -27,14 +27,14 @@ export default function AdminPanel({ open, onClose }) {
   }, []);
 
   const loadCategories = () => {
-    RestClient.get('/get-categories').then((response) => {
+    RestClient.get('/finance/get-categories').then((response) => {
       setCategories(response.data);
     });
   };
 
   const handleAddCategory = () => {
     if (newCategory.trim()) {
-      RestClient.post('/add-category', { categoryName: newCategory.trim() })
+      RestClient.post('/finance/add-category', { categoryName: newCategory.trim() })
         .then(() => {
           loadCategories();
           setNewCategory('');
@@ -47,7 +47,7 @@ export default function AdminPanel({ open, onClose }) {
   };
 
   const handleDeleteCategory = (categoryName) => {
-    RestClient.post('/delete-category', { categoryName: categoryName })
+    RestClient.post('/finance/delete-category', { categoryName: categoryName })
       .then(() => {
         loadCategories();
         setDeleteDialog({ open: false, category: null });

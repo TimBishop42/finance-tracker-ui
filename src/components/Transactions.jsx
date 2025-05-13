@@ -17,7 +17,7 @@ export default function Transactions(props) {
     const [deleteDialog, setDeleteDialog] = useState({ open: false, transactionId: null });
 
     useEffect(() => {
-        const endpoint = `/find-all-transactions?recentMonth=${recentMonthOnly}`;
+        const endpoint = `/finance/find-all-transactions?recentMonth=${recentMonthOnly}`;
         RestClient.get(endpoint).then((response) => {
             setTransactions([].concat(response.data).sort((a, b) => a.transactionDateTime > b.transactionDateTime ? -1 : 1));
         });
@@ -40,7 +40,7 @@ export default function Transactions(props) {
     };
 
     const handleDeleteConfirm = () => {
-        RestClient.post('/delete-transaction', { transactionId: deleteDialog.transactionId })
+        RestClient.post('/finance/delete-transaction', { transactionId: deleteDialog.transactionId })
             .then(() => {
                 // Refresh the transactions list
                 const endpoint = `/find-all-transactions?recentMonth=${recentMonthOnly}`;

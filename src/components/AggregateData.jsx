@@ -32,7 +32,7 @@ export default function Transactions() {
     };
 
     useEffect(() => {
-        RestClient.get(`/get-summary-months?months=${monthRange}`).then((response) => {
+        RestClient.get(`/finance/get-summary-months?months=${monthRange}`).then((response) => {
             setAggregateData(response.data);
             // Transform data to group by category instead of month
             const categories = response.data[0]?.categoryValues?.map(cat => cat.category) || [];
