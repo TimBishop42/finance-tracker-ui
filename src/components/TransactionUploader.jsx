@@ -19,6 +19,7 @@ import {
   TextField
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
+import DeleteIcon from '@mui/icons-material/Delete';
 import RestClient from '../rest/CategoryClient';
 
 export default function TransactionUploader({ open, onClose }) {
@@ -68,6 +69,12 @@ export default function TransactionUploader({ open, onClose }) {
   const handleCommentChange = (index, comment) => {
     const updatedTransactions = [...transactions];
     updatedTransactions[index].comment = comment;
+    setTransactions(updatedTransactions);
+  };
+
+  const handleExcludeTransaction = (index) => {
+    const updatedTransactions = [...transactions];
+    updatedTransactions.splice(index, 1);
     setTransactions(updatedTransactions);
   };
 
@@ -125,6 +132,7 @@ export default function TransactionUploader({ open, onClose }) {
                     <TableCell>Description</TableCell>
                     <TableCell>Category</TableCell>
                     <TableCell>Comment</TableCell>
+                    <TableCell>Actions</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -152,6 +160,15 @@ export default function TransactionUploader({ open, onClose }) {
                           onChange={(e) => handleCommentChange(index, e.target.value)}
                           fullWidth
                         />
+                      </TableCell>
+                      <TableCell>
+                        <IconButton 
+                          onClick={() => handleExcludeTransaction(index)}
+                          color="error"
+                          size="small"
+                        >
+                          <DeleteIcon />
+                        </IconButton>
                       </TableCell>
                     </TableRow>
                   ))}

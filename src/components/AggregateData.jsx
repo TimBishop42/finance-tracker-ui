@@ -3,10 +3,12 @@ import React, { useState, useEffect } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import Box from '@mui/material/Box';
 import { styled } from '@mui/material/styles';
+import { Slider, Typography } from '@mui/material';
 
 export default function Transactions() {
     const [aggregateData, setAggregateData] = useState([]);
     const [chartData, setChartData] = useState([]);
+    const [monthRange, setMonthRange] = useState(12); // Default to 12 months
 
     const TotalBox = styled(Box)(({ theme, bgcolor }) => ({
         padding: theme.spacing(2),
@@ -30,7 +32,7 @@ export default function Transactions() {
     };
 
     useEffect(() => {
-        RestClient.get('/get-summary-months').then((response) => {
+        RestClient.get(`/get-summary-months?months=${monthRange}`).then((response) => {
             setAggregateData(response.data);
             // Transform data to group by category instead of month
             const categories = response.data[0]?.categoryValues?.map(cat => cat.category) || [];
@@ -44,13 +46,29 @@ export default function Transactions() {
             });
             setChartData(transformedData);
         });
-    }, []);
+    }, [monthRange]); // Re-fetch when monthRange changes
 
     // Get months for the bars
     const months = aggregateData.map(data => data.month) || [];
 
     return (
         <Box>
+            <Box sx={{ width: 300, mx: 'auto', mt: 4 }}>
+                <Typography id="month-range-slider" gutterBottom>
+                    Number of Months to Display
+                </Typography>
+                <Slider
+                    value={monthRange}
+                    onChange={(_, newValue) => setMonthRange(newValue)}
+                    aria-labelledby="month-range-slider"
+                    valueLabelDisplay="auto"
+                    step={1}
+                    marks
+                    min={1}
+                    max={12}
+                />
+            </Box>
+
             <Box
                 display="flex"
                 justifyContent="center"
@@ -86,7 +104,7 @@ export default function Transactions() {
                             <Bar 
                                 key={month}
                                 dataKey={month}
-                                fill={["blue", "white", "red", "green", "purple"][index % 5]}
+                                fill={["blue", "red", "green", "purple"][index % 5]}
                                 barSize={30}
                             />
                         ))}
