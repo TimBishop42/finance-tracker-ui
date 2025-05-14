@@ -16,7 +16,9 @@ import {
   Paper,
   Select,
   MenuItem,
-  TextField
+  TextField,
+  FormControlLabel,
+  Checkbox
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -27,6 +29,7 @@ export default function TransactionUploader({ open, onClose }) {
   const [categories, setCategories] = useState([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [stage, setStage] = useState(1); // 1 for upload, 2 for review
+  const [dryRun, setDryRun] = useState(false);
 
   // Load categories when component mounts
   React.useEffect(() => {
@@ -81,14 +84,18 @@ export default function TransactionUploader({ open, onClose }) {
   const handleSubmit = () => {
     setIsProcessing(true);
     const formattedTransactions = transactions.map(t => ({
-      category: t.userCorrectedCategory || t.predictedCategory,
+      predictedCategory: t.predictedCategory,
+      userCorrectedCategory: t.userCorrectedCategory,
       amount: t.transactionAmount,
       transactionDate: new Date(t.transactionDate).getTime(),
       comment: t.comment,
       essential: false // Default value
     }));
 
-    RestClient.post('/finance/submit-transaction-batch', { transactionJsonList: formattedTransactions })
+    RestClient.post('/finance/submit-transaction-batch', { 
+      transactionJsonList: formattedTransactions,
+      dryRun: dryRun 
+    })
       .then(response => {
         console.log('Batch submitted:', response.data);
         onClose();
@@ -207,13 +214,25 @@ export default function TransactionUploader({ open, onClose }) {
       <DialogActions>
         <Button onClick={onClose}>Cancel</Button>
         {stage === 2 && (
-          <Button 
-            onClick={handleSubmit} 
-            variant="contained" 
-            disabled={isProcessing || transactions.some(t => !t.userCorrectedCategory && !t.predictedCategory)}
-          >
-            Submit Batch
-          </Button>
+          <>
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={dryRun}
+                  onChange={(e) => setDryRun(e.target.checked)}
+                  color="primary"
+                />
+              }
+              label="Dry Run"
+            />
+            <Button 
+              onClick={handleSubmit} 
+              variant="contained" 
+              disabled={isProcessing || transactions.some(t => !t.userCorrectedCategory && !t.predictedCategory)}
+            >
+              Submit Batch
+            </Button>
+          </>
         )}
       </DialogActions>
     </Dialog>
