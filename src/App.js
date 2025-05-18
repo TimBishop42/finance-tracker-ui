@@ -19,7 +19,7 @@ function App() {
   const [uploadOpen, setUploadOpen] = useState(false);
 
   useEffect(() => {
-    CategoryClient.get('/get-categories').then((response) => {
+    CategoryClient.get('/finance/get-categories').then((response) => {
       setCategories(response.data);
     });
   }, []);
