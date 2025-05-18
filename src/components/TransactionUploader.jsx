@@ -88,6 +88,7 @@ export default function TransactionUploader({ open, onClose }) {
       userCorrectedCategory: t.userCorrectedCategory,
       amount: t.transactionAmount,
       transactionDate: new Date(t.transactionDate).getTime(),
+      transactionBusiness: t.transactionBusiness,
       comment: t.comment,
       essential: false // Default value
     }));
