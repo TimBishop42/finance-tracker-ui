@@ -115,8 +115,8 @@ export default function TransactionUploader({ open, onClose }) {
       .then(response => {
         const categorizedTransactions = response.data.map((cat, index) => ({
           ...transactions[index],
-          predictedCategory: cat.predictedCategory,
-          confidenceScore: cat.confidenceScore
+          predictedCategory: cat.predicted_category,
+          confidenceScore: cat.confidence_score
         }));
         setTransactions(categorizedTransactions);
       })
