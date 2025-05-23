@@ -1,9 +1,14 @@
-import RestClient from '../rest/CategoryClient';
 import React, { useState, useEffect } from 'react';
+import {
+  Paper,
+  Typography,
+  Box,
+  CircularProgress,
+} from '@mui/material';
+import RestClient from '../../rest/CategoryClient';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
-import Box from '@mui/material/Box';
 import { styled } from '@mui/material/styles';
-import { Slider, Typography } from '@mui/material';
+import { Slider } from '@mui/material';
 
 export default function Transactions() {
     const [aggregateData, setAggregateData] = useState([]);
