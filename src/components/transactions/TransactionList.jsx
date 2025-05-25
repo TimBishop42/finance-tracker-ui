@@ -125,7 +125,12 @@ export default function TransactionList() {
             {transactions.map((transaction) => (
               <TableRow key={transaction.transactionId}>
                 <TableCell>
-                  {new Date(transaction.transactionDate).toLocaleDateString()}
+                  {new Date(transaction.transactionDate.split('-').reverse().join('-'))
+                    .toLocaleDateString('en-GB', {
+                      day: '2-digit',
+                      month: '2-digit',
+                      year: 'numeric'
+                    })}
                 </TableCell>
                 <TableCell>{transaction.category}</TableCell>
                 <TableCell align="right">
