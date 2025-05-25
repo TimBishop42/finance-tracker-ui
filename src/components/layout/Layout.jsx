@@ -23,8 +23,10 @@ import {
   DarkMode as DarkModeIcon,
   LightMode as LightModeIcon,
   Home as HomeIcon,
+  Settings as SettingsIcon,
 } from '@mui/icons-material';
 import { useNavigate, useLocation } from 'react-router-dom';
+import SettingsDialog from '../settings/SettingsDialog';
 
 const drawerWidth = 240;
 
@@ -81,6 +83,7 @@ const menuItems = [
 
 export default function Layout({ children, onToggleColorMode, mode }) {
   const [open, setOpen] = useState(true);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -109,6 +112,14 @@ export default function Layout({ children, onToggleColorMode, mode }) {
             Finance Tracker
           </Typography>
           <Box sx={{ display: 'flex', alignItems: 'center' }}>
+            <IconButton 
+              color="inherit" 
+              onClick={() => setSettingsOpen(true)}
+              aria-label="settings"
+              sx={{ mr: 2 }}
+            >
+              <SettingsIcon />
+            </IconButton>
             <LightModeIcon sx={{ mr: 1 }} />
             <Switch
               checked={mode === 'dark'}
@@ -156,6 +167,10 @@ export default function Layout({ children, onToggleColorMode, mode }) {
         <DrawerHeader />
         {children}
       </Main>
+      <SettingsDialog 
+        open={settingsOpen} 
+        onClose={() => setSettingsOpen(false)} 
+      />
     </Box>
   );
 } 

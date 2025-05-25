@@ -26,6 +26,7 @@ import CloseIcon from '@mui/icons-material/Close';
 import DeleteIcon from '@mui/icons-material/Delete';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import RestClient from '../../rest/CategoryClient';
+import { addCategory } from '../../services/finance-service';
 
 export default function TransactionUploader() {
   const [transactions, setTransactions] = useState([]);
@@ -34,17 +35,28 @@ export default function TransactionUploader() {
   const [stage, setStage] = useState(1); // 1 for upload, 2 for review
   const [dryRun, setDryRun] = useState(false);
   const [error, setError] = useState(null);
+  const [newCategoryDialogOpen, setNewCategoryDialogOpen] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState("");
+  const [newCategoryLoading, setNewCategoryLoading] = useState(false);
+  const [newCategoryError, setNewCategoryError] = useState(null);
+  const [currentTransactionIndex, setCurrentTransactionIndex] = useState(null);
   const fileInputRef = useRef(null);
 
   // Load categories when component mounts
   useEffect(() => {
-    RestClient.get('/finance/get-categories')
-      .then(response => setCategories(response.data))
-      .catch(error => {
-        console.error('Error loading categories:', error);
-        setError('Failed to load categories');
-      });
+    fetchCategories();
   }, []);
+
+  const fetchCategories = async () => {
+    try {
+      const response = await RestClient.get('/finance/get-categories');
+      setCategories(response.data);
+      setError(null);
+    } catch (error) {
+      console.error('Error loading categories:', error);
+      setError('Failed to load categories');
+    }
+  };
 
   const handleFileUpload = (event) => {
     const file = event.target.files[0];
@@ -72,9 +84,40 @@ export default function TransactionUploader() {
   };
 
   const handleCategoryChange = (index, category) => {
+    if (category === "new_category") {
+      setCurrentTransactionIndex(index);
+      setNewCategoryDialogOpen(true);
+      return;
+    }
     const updatedTransactions = [...transactions];
     updatedTransactions[index].userCorrectedCategory = category;
     setTransactions(updatedTransactions);
+  };
+
+  const handleNewCategorySubmit = async () => {
+    if (!newCategoryName.trim()) return;
+
+    try {
+      setNewCategoryLoading(true);
+      setNewCategoryError(null);
+      await addCategory(newCategoryName);
+      await fetchCategories();
+      
+      if (currentTransactionIndex !== null) {
+        const updatedTransactions = [...transactions];
+        updatedTransactions[currentTransactionIndex].userCorrectedCategory = newCategoryName;
+        setTransactions(updatedTransactions);
+      }
+      
+      setNewCategoryName("");
+      setNewCategoryDialogOpen(false);
+      setCurrentTransactionIndex(null);
+    } catch (err) {
+      setNewCategoryError('Failed to add category');
+      console.error('Error adding category:', err);
+    } finally {
+      setNewCategoryLoading(false);
+    }
   };
 
   const handleCommentChange = (index, comment) => {
@@ -217,6 +260,9 @@ export default function TransactionUploader() {
                               {cat.categoryName}
                             </MenuItem>
                           ))}
+                          <MenuItem value="new_category">
+                            <Typography color="primary">+ Add New Category</Typography>
+                          </MenuItem>
                         </Select>
                       </TableCell>
                       <TableCell>
@@ -249,19 +295,49 @@ export default function TransactionUploader() {
                     color="primary"
                   />
                 }
-                label="Dry Run"
+                label="Dry Run (Don't save transactions)"
               />
-              <Button 
-                onClick={handleSubmit} 
-                variant="contained" 
-                disabled={isProcessing || transactions.some(t => !t.userCorrectedCategory && !t.predictedCategory)}
+              <Button
+                variant="contained"
+                color="primary"
+                onClick={handleSubmit}
+                disabled={isProcessing}
               >
-                {isProcessing ? <CircularProgress size={24} /> : 'Submit Batch'}
+                {isProcessing ? <CircularProgress size={24} /> : 'Submit Transactions'}
               </Button>
             </Box>
           </>
         )}
       </Box>
+
+      <Dialog open={newCategoryDialogOpen} onClose={() => setNewCategoryDialogOpen(false)}>
+        <DialogTitle>Add New Category</DialogTitle>
+        <DialogContent>
+          <TextField
+            autoFocus
+            margin="dense"
+            label="Category Name"
+            fullWidth
+            value={newCategoryName}
+            onChange={(e) => setNewCategoryName(e.target.value)}
+            error={!!newCategoryError}
+            helperText={newCategoryError}
+            disabled={newCategoryLoading}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setNewCategoryDialogOpen(false)} disabled={newCategoryLoading}>
+            Cancel
+          </Button>
+          <Button 
+            onClick={handleNewCategorySubmit} 
+            variant="contained" 
+            disabled={newCategoryLoading || !newCategoryName.trim()}
+          >
+            {newCategoryLoading ? <CircularProgress size={24} /> : 'Add Category'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Paper>
   );
 }

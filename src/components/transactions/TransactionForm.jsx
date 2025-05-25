@@ -20,6 +20,8 @@ import { DatePicker } from '@mui/x-date-pickers/DatePicker';
 import { useCategories } from '../../context/CategoriesContext';
 import RestClient from '../../rest/CategoryClient';
 import TransactionList from './TransactionList';
+import { useCategoryManagement } from '../../hooks/useCategoryManagement';
+import { NewCategoryDialog } from '../common/NewCategoryDialog';
 
 const defaultValues = {
   transactionCategory: "",
@@ -30,14 +32,35 @@ const defaultValues = {
 };
 
 export default function TransactionForm() {
-  const { categories, loading, error } = useCategories();
+  const { categories, loading, error, refreshCategories } = useCategories();
   const [formValues, setFormValues] = useState(defaultValues);
   const [submitted, setSubmitted] = useState(false);
   const [submissionSuccess, setSubmissionSuccess] = useState(false);
   const [submissionMessage, setSubmissionMessage] = useState("");
 
+  const {
+    newCategoryDialogOpen,
+    setNewCategoryDialogOpen,
+    newCategoryName,
+    setNewCategoryName,
+    newCategoryLoading,
+    newCategoryError,
+    handleNewCategory,
+    handleNewCategorySubmit
+  } = useCategoryManagement((newCategory) => {
+    setFormValues({
+      ...formValues,
+      transactionCategory: newCategory,
+    });
+    refreshCategories();
+  });
+
   const handleChange = (e) => {
     const { name, value } = e.target;
+    if (value === "new_category") {
+      handleNewCategory();
+      return;
+    }
     setFormValues({
       ...formValues,
       [name]: value,
@@ -114,6 +137,9 @@ export default function TransactionForm() {
                       {category.categoryName}
                     </MenuItem>
                   ))}
+                  <MenuItem value="new_category">
+                    <Typography color="primary">+ Add New Category</Typography>
+                  </MenuItem>
                 </TextField>
               </FormControl>
             </Grid>
@@ -195,6 +221,16 @@ export default function TransactionForm() {
           </Box>
         )}
       </Paper>
+
+      <NewCategoryDialog
+        open={newCategoryDialogOpen}
+        onClose={() => setNewCategoryDialogOpen(false)}
+        categoryName={newCategoryName}
+        onCategoryNameChange={(e) => setNewCategoryName(e.target.value)}
+        onSubmit={handleNewCategorySubmit}
+        loading={newCategoryLoading}
+        error={newCategoryError}
+      />
 
       <TransactionList />
     </Box>

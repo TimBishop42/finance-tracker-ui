@@ -26,7 +26,7 @@ export function CategoriesProvider({ children }) {
 
   const fetchCategories = async () => {
     try {
-      const response = await RestClient.get('/finance/categories');
+      const response = await RestClient.get('/finance/get-categories');
       if (response.data && Array.isArray(response.data)) {
         setCategories(response.data);
       }

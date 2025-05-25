@@ -2,48 +2,47 @@ import React, { useState, useEffect } from 'react';
 import {
   Box,
   Button,
-  TextField,
   List,
   ListItem,
   ListItemText,
   Dialog,
   DialogTitle,
   DialogContent,
-  DialogActions,
   IconButton
 } from '@mui/material';
 import RestClient from '../rest/CategoryClient';
 import CloseIcon from '@mui/icons-material/Close';
 import DeleteIcon from '@mui/icons-material/Delete';
+import { useCategoryManagement } from '../hooks/useCategoryManagement';
+import { NewCategoryDialog } from './common/NewCategoryDialog';
 
 export default function AdminPanel({ open, onClose }) {
   const [categories, setCategories] = useState([]);
-  const [newCategory, setNewCategory] = useState('');
-  const [openDialog, setOpenDialog] = useState(false);
   const [deleteDialog, setDeleteDialog] = useState({ open: false, category: null });
 
-  useEffect(() => {
+  const {
+    newCategoryDialogOpen,
+    setNewCategoryDialogOpen,
+    newCategoryName,
+    setNewCategoryName,
+    newCategoryLoading,
+    newCategoryError,
+    handleNewCategory,
+    handleNewCategorySubmit
+  } = useCategoryManagement((newCategory) => {
     loadCategories();
-  }, []);
+  });
+
+  useEffect(() => {
+    if (open) {
+      loadCategories();
+    }
+  }, [open]);
 
   const loadCategories = () => {
     RestClient.get('/finance/get-categories').then((response) => {
       setCategories(response.data);
     });
-  };
-
-  const handleAddCategory = () => {
-    if (newCategory.trim()) {
-      RestClient.post('/finance/add-category', { categoryName: newCategory.trim() })
-        .then(() => {
-          loadCategories();
-          setNewCategory('');
-          setOpenDialog(false);
-        })
-        .catch(error => {
-          console.error('Error saving category:', error);
-        });
-    }
   };
 
   const handleDeleteCategory = (categoryName) => {
@@ -82,7 +81,7 @@ export default function AdminPanel({ open, onClose }) {
         <Box sx={{ mt: 2 }}>
           <Button
             variant="contained"
-            onClick={() => setOpenDialog(true)}
+            onClick={() => handleNewCategory()}
             sx={{ mb: 2 }}
           >
             Add New Category
@@ -104,23 +103,15 @@ export default function AdminPanel({ open, onClose }) {
         </Box>
       </DialogContent>
 
-      <Dialog open={openDialog} onClose={() => setOpenDialog(false)}>
-        <DialogTitle>Add New Category</DialogTitle>
-        <DialogContent>
-          <TextField
-            autoFocus
-            margin="dense"
-            label="Category Name"
-            fullWidth
-            value={newCategory}
-            onChange={(e) => setNewCategory(e.target.value)}
-          />
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setOpenDialog(false)}>Cancel</Button>
-          <Button onClick={handleAddCategory} variant="contained">Add</Button>
-        </DialogActions>
-      </Dialog>
+      <NewCategoryDialog
+        open={newCategoryDialogOpen}
+        onClose={() => setNewCategoryDialogOpen(false)}
+        categoryName={newCategoryName}
+        onCategoryNameChange={(e) => setNewCategoryName(e.target.value)}
+        onSubmit={handleNewCategorySubmit}
+        loading={newCategoryLoading}
+        error={newCategoryError}
+      />
 
       <Dialog open={deleteDialog.open} onClose={() => setDeleteDialog({ open: false, category: null })}>
         <DialogTitle>Delete Category</DialogTitle>

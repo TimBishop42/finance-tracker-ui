@@ -9,11 +9,13 @@ import RestClient from '../../rest/CategoryClient';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { styled } from '@mui/material/styles';
 import { Slider } from '@mui/material';
+import { getMaxSpendValue } from '../../services/finance-service';
 
 export default function Transactions() {
     const [aggregateData, setAggregateData] = useState([]);
     const [chartData, setChartData] = useState([]);
     const [monthRange, setMonthRange] = useState(12); // Default to 12 months
+    const [maxSpendValue, setMaxSpendValue] = useState(12000); // Default value
 
     const TotalBox = styled(Box)(({ theme, bgcolor }) => ({
         padding: theme.spacing(2),
@@ -29,14 +31,28 @@ export default function Transactions() {
     }));
 
     const getColor = (total) => {
-        if (total <= 9000) return 'rgb(0, 255, 0)';
-        if (total >= 12000) return 'rgb(255, 0, 0)';
-        const red = Math.min(255, Math.floor(255 * (total - 9000) / 3000));
+        const warningThreshold = maxSpendValue * 0.75; // 75% of max value
+        if (total <= warningThreshold) return 'rgb(0, 255, 0)'; // Green
+        if (total >= maxSpendValue) return 'rgb(255, 0, 0)'; // Red
+        
+        // Calculate gradient between warning threshold and max value
+        const range = maxSpendValue - warningThreshold;
+        const position = total - warningThreshold;
+        const red = Math.min(255, Math.floor(255 * position / range));
         const green = Math.max(0, 255 - red);
         return `rgb(${red}, ${green}, 0)`;
     };
 
     useEffect(() => {
+        // Load max spend value from API
+        getMaxSpendValue()
+            .then(value => {
+                setMaxSpendValue(value);
+            })
+            .catch(error => {
+                console.error('Failed to load max spend value:', error);
+            });
+
         RestClient.get(`/finance/get-summary-months?months=${monthRange}`).then((response) => {
             setAggregateData(response.data);
             // Transform data to group by category instead of month
