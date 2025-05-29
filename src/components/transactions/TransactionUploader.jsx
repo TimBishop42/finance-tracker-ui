@@ -27,6 +27,7 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import RestClient from '../../rest/CategoryClient';
 import { addCategory } from '../../services/finance-service';
+import DuplicateReviewModal from './DuplicateReviewModal';
 
 export default function TransactionUploader() {
   const [transactions, setTransactions] = useState([]);
@@ -41,6 +42,10 @@ export default function TransactionUploader() {
   const [newCategoryError, setNewCategoryError] = useState(null);
   const [currentTransactionIndex, setCurrentTransactionIndex] = useState(null);
   const fileInputRef = useRef(null);
+  const [duplicateModal, setDuplicateModal] = useState({
+    open: false,
+    duplicates: null
+  });
 
   // Load categories when component mounts
   useEffect(() => {
@@ -136,12 +141,13 @@ export default function TransactionUploader() {
     setIsProcessing(true);
     const formattedTransactions = transactions.map(t => ({
       predictedCategory: t.predictedCategory,
-      userCorrectedCategory: t.userCorrectedCategory,
-      amount: t.transactionAmount,
+      userCorrectedCategory: t.userCorrectedCategory || t.predictedCategory,
+      amount: t.transactionAmount.toString(),
       transactionDate: new Date(t.transactionDate).getTime(),
-      transactionBusiness: t.transactionBusiness,
-      comment: t.comment,
-      essential: false // Default value
+      transactionBusiness: t.transactionBusiness || '',
+      comment: t.comment || '',
+      essential: false,
+      duplicateReviewed: false
     }));
 
     RestClient.post('/finance/submit-transaction-batch', { 
@@ -149,9 +155,22 @@ export default function TransactionUploader() {
       dryRun: dryRun 
     })
       .then(response => {
-        console.log('Batch submitted:', response.data);
-        setTransactions([]);
-        setStage(1);
+        console.log('Batch response:', response.data);
+        // Handle array response
+        const responseData = Array.isArray(response.data) ? response.data[0] : response.data;
+        console.log('Processed response:', responseData);
+        
+        if (responseData.hasDuplicates) {
+          console.log('Setting duplicate modal with:', responseData.duplicates);
+          setDuplicateModal({
+            open: true,
+            duplicates: responseData.duplicates
+          });
+        } else {
+          console.log('Batch submitted:', responseData);
+          setTransactions([]);
+          setStage(1);
+        }
       })
       .catch(error => {
         console.error('Error submitting batch:', error);
@@ -160,6 +179,39 @@ export default function TransactionUploader() {
       .finally(() => {
         setIsProcessing(false);
       });
+  };
+
+  const handleDuplicateConfirm = async (transactionsToSave) => {
+    setDuplicateModal(prev => ({ ...prev, open: false }));
+    try {
+      console.log('Raw transactions from modal:', transactionsToSave);
+      const formattedTransactions = transactionsToSave.map(t => {
+        console.log('Raw transaction:', t);
+        // The transaction is directly in the object, not in newTransaction
+        return {
+          userCorrectedCategory: t.category,
+          amount: t.amount.toString(),
+          transactionDate: t.transactionDateTime,
+          transactionBusiness: t.businessName || '',
+          comment: t.comment || '',
+          essential: t.essential || false,
+          duplicateReviewed: true
+        };
+      });
+      console.log('Formatted transactions:', formattedTransactions);
+
+      const response = await RestClient.post('/finance/submit-transaction-batch', {
+        transactionJsonList: formattedTransactions,
+        dryRun: false
+      });
+      if (response.data) {
+        setTransactions([]);
+        setStage(1);
+      }
+    } catch (err) {
+      console.error('Error saving transactions:', err);
+      setError('Failed to save transactions. Please try again.');
+    }
   };
 
   const handlePredictCategories = () => {
@@ -338,6 +390,13 @@ export default function TransactionUploader() {
           </Button>
         </DialogActions>
       </Dialog>
+
+      <DuplicateReviewModal
+        open={duplicateModal.open}
+        onClose={() => setDuplicateModal(prev => ({ ...prev, open: false }))}
+        duplicates={duplicateModal.duplicates}
+        onConfirm={handleDuplicateConfirm}
+      />
     </Paper>
   );
 }

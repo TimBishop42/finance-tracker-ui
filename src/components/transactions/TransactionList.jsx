@@ -18,6 +18,10 @@ import {
   DialogContent,
   DialogActions,
   Button,
+  Select,
+  MenuItem,
+  FormControl,
+  InputLabel,
 } from '@mui/material';
 import { Delete as DeleteIcon } from '@mui/icons-material';
 import RestClient from '../../rest/CategoryClient';
@@ -28,6 +32,7 @@ export default function TransactionList() {
   const [error, setError] = useState(null);
   const [recentMonthOnly, setRecentMonthOnly] = useState(true);
   const [deleteDialog, setDeleteDialog] = useState({ open: false, transactionId: null });
+  const [selectedCategory, setSelectedCategory] = useState('all');
 
   useEffect(() => {
     fetchTransactions();
@@ -76,6 +81,15 @@ export default function TransactionList() {
     setDeleteDialog({ open: false, transactionId: null });
   };
 
+  const handleCategoryChange = (event) => {
+    setSelectedCategory(event.target.value);
+  };
+
+  const filteredTransactions = transactions
+    .filter(transaction => selectedCategory === 'all' || transaction.category === selectedCategory);
+
+  const categories = ['all', ...new Set(transactions.map(t => t.category))].sort();
+
   if (loading) {
     return (
       <Box display="flex" justifyContent="center" alignItems="center" minHeight="200px">
@@ -98,16 +112,32 @@ export default function TransactionList() {
         <Typography variant="h5">
           Recent Transactions
         </Typography>
-        <FormControlLabel
-          control={
-            <Switch
-              checked={recentMonthOnly}
-              onChange={handleToggleChange}
-              color="primary"
-            />
-          }
-          label="Recent Month Only"
-        />
+        <Box display="flex" alignItems="center" gap={2}>
+          <FormControl size="small" sx={{ minWidth: 120 }}>
+            <InputLabel>Category</InputLabel>
+            <Select
+              value={selectedCategory}
+              onChange={handleCategoryChange}
+              label="Category"
+            >
+              {categories.map(category => (
+                <MenuItem key={category} value={category}>
+                  {category === 'all' ? 'All Categories' : category}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+          <FormControlLabel
+            control={
+              <Switch
+                checked={recentMonthOnly}
+                onChange={handleToggleChange}
+                color="primary"
+              />
+            }
+            label="Recent Month Only"
+          />
+        </Box>
       </Box>
       <TableContainer>
         <Table>
@@ -122,15 +152,10 @@ export default function TransactionList() {
             </TableRow>
           </TableHead>
           <TableBody>
-            {transactions.map((transaction) => (
+            {filteredTransactions.map((transaction) => (
               <TableRow key={transaction.transactionId}>
                 <TableCell>
-                  {new Date(transaction.transactionDate.split('-').reverse().join('-'))
-                    .toLocaleDateString('en-GB', {
-                      day: '2-digit',
-                      month: '2-digit',
-                      year: 'numeric'
-                    })}
+                  {transaction.transactionDate}
                 </TableCell>
                 <TableCell>{transaction.category}</TableCell>
                 <TableCell align="right">

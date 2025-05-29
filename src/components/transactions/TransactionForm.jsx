@@ -1,238 +1,265 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
-  Grid,
+  Box,
   Button,
-  FormControl,
-  FormControlLabel,
-  FormLabel,
-  RadioGroup,
-  Radio,
   TextField,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  FormControlLabel,
+  Switch,
   Paper,
   Typography,
-  Box,
-  CircularProgress,
-  MenuItem,
+  Alert,
 } from '@mui/material';
-import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
-import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { DatePicker } from '@mui/x-date-pickers/DatePicker';
-import { useCategories } from '../../context/CategoriesContext';
+import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
+import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import RestClient from '../../rest/CategoryClient';
+import DuplicateReviewModal from './DuplicateReviewModal';
 import TransactionList from './TransactionList';
-import { useCategoryManagement } from '../../hooks/useCategoryManagement';
-import { NewCategoryDialog } from '../common/NewCategoryDialog';
 
-const defaultValues = {
-  transactionCategory: "",
-  amount: "",
-  date: new Date(),
-  comments: "",
-  essential: false,
-};
-
-export default function TransactionForm() {
-  const { categories, loading, error, refreshCategories } = useCategories();
-  const [formValues, setFormValues] = useState(defaultValues);
-  const [submitted, setSubmitted] = useState(false);
-  const [submissionSuccess, setSubmissionSuccess] = useState(false);
-  const [submissionMessage, setSubmissionMessage] = useState("");
-
-  const {
-    newCategoryDialogOpen,
-    setNewCategoryDialogOpen,
-    newCategoryName,
-    setNewCategoryName,
-    newCategoryLoading,
-    newCategoryError,
-    handleNewCategory,
-    handleNewCategorySubmit
-  } = useCategoryManagement((newCategory) => {
-    setFormValues({
-      ...formValues,
-      transactionCategory: newCategory,
-    });
-    refreshCategories();
+export default function TransactionForm({ onTransactionAdded }) {
+  const [formData, setFormData] = useState({
+    transactionDate: new Date(),
+    amount: '',
+    businessName: '',
+    category: '',
+    comment: '',
+    essential: false,
+  });
+  const [error, setError] = useState(null);
+  const [success, setSuccess] = useState(false);
+  const [categories, setCategories] = useState([]);
+  const [duplicateModal, setDuplicateModal] = useState({
+    open: false,
+    duplicates: [],
+    newTransaction: null
   });
 
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    if (value === "new_category") {
-      handleNewCategory();
-      return;
+  useEffect(() => {
+    fetchCategories();
+  }, []);
+
+  const fetchCategories = async () => {
+    try {
+      const response = await RestClient.get('/finance/get-categories');
+      setCategories(response.data.map(cat => cat.categoryName));
+    } catch (err) {
+      console.error('Error fetching categories:', err);
+      setError('Failed to load categories');
     }
-    setFormValues({
-      ...formValues,
-      [name]: value,
-    });
-    setSubmitted(false);
+  };
+
+  const handleChange = (e) => {
+    const { name, value, checked } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: name === 'essential' ? checked : value
+    }));
   };
 
   const handleDateChange = (date) => {
-    setFormValues({
-      ...formValues,
-      date,
-    });
-    setSubmitted(false);
+    setFormData(prev => ({
+      ...prev,
+      transactionDate: date
+    }));
   };
 
-  const handleSubmit = async (event) => {
-    event.preventDefault();
-    const transactionData = {
-      category: formValues.transactionCategory,
-      amount: formValues.amount,
-      transactionDate: formValues.date.getTime(),
-      comment: formValues.comments,
-      essential: formValues.essential === "true",
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError(null);
+    setSuccess(false);
+
+    console.log('Form data amount:', formData.amount);
+    const payload = {
+      ...formData,
+      transactionDate: formData.transactionDate.getTime(),
+      transactionBusiness: formData.businessName || '',
+      duplicateReviewed: false
     };
+    console.log('Submitting transaction with payload:', payload);
 
     try {
-      await RestClient.post('/finance/submit-transaction', transactionData);
-      setSubmitted(true);
-      setSubmissionSuccess(true);
-      setFormValues(defaultValues);
-    } catch (error) {
-      setSubmitted(true);
-      setSubmissionSuccess(false);
-      setSubmissionMessage(error.response?.data || "An error occurred");
+      const response = await RestClient.post('/finance/submit-transaction', payload);
+      console.log('API response:', response.data);
+
+      if (response.data.hasDuplicates) {
+        console.log('Duplicates found:', response.data.duplicates);
+        setDuplicateModal({
+          open: true,
+          duplicates: response.data.duplicates
+        });
+        return;
+      }
+
+      setSuccess(true);
+      setFormData({
+        transactionDate: new Date(),
+        amount: '',
+        businessName: '',
+        category: '',
+        comment: '',
+        essential: false,
+      });
+      if (onTransactionAdded) {
+        onTransactionAdded();
+      }
+    } catch (err) {
+      console.error('Error saving transaction:', err);
+      setError('Failed to save transaction. Please try again.');
     }
   };
 
-  if (loading) {
-    return (
-      <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
-        <CircularProgress />
-      </Box>
-    );
-  }
+  const handleDuplicateConfirm = async (transactionsToSave) => {
+    setDuplicateModal(prev => ({ ...prev, open: false }));
+    try {
+      const transaction = transactionsToSave[0];
+      console.log('Transaction from modal:', transaction);
+      console.log('Amount from modal:', transaction.amount);
+      
+      const payload = {
+        ...transaction,
+        transactionDate: transaction.transactionDateTime,
+        transactionBusiness: transaction.businessName || '',
+        duplicateReviewed: true
+      };
+      console.log('Payload to API:', payload);
 
-  if (error) {
-    return (
-      <Box display="flex" justifyContent="center" alignItems="center" minHeight="400px">
-        <Typography color="error">Error loading categories. Please try again later.</Typography>
-      </Box>
-    );
-  }
+      const response = await RestClient.post('/finance/submit-transaction', payload);
+      console.log('Final API response:', response.data);
+
+      if (response.data) {
+        setSuccess(true);
+        setFormData({
+          transactionDate: new Date(),
+          amount: '',
+          businessName: '',
+          category: '',
+          comment: '',
+          essential: false,
+        });
+        if (onTransactionAdded) {
+          onTransactionAdded();
+        }
+      }
+    } catch (err) {
+      console.error('Error saving transaction:', err);
+      setError('Failed to save transaction. Please try again.');
+    }
+  };
 
   return (
-    <Box>
-      <Paper elevation={3} sx={{ p: 3, maxWidth: 600, mx: 'auto', mt: 4 }}>
+    <>
+      <Paper elevation={3} sx={{ p: 3, mt: 4 }}>
         <Typography variant="h5" gutterBottom>
           Add New Transaction
         </Typography>
-        <form onSubmit={handleSubmit}>
-          <Grid container spacing={3}>
-            <Grid item xs={12}>
-              <FormControl fullWidth>
-                <TextField
-                  select
-                  label="Category"
-                  name="transactionCategory"
-                  value={formValues.transactionCategory}
-                  onChange={handleChange}
-                  required
-                >
-                  {categories.map((category) => (
-                    <MenuItem key={category.categoryName} value={category.categoryName}>
-                      {category.categoryName}
-                    </MenuItem>
-                  ))}
-                  <MenuItem value="new_category">
-                    <Typography color="primary">+ Add New Category</Typography>
-                  </MenuItem>
-                </TextField>
-              </FormControl>
-            </Grid>
 
-            <Grid item xs={12}>
-              <TextField
-                fullWidth
-                label="Amount"
-                type="number"
-                name="amount"
-                value={formValues.amount}
-                onChange={handleChange}
-                required
-              />
-            </Grid>
+        <Box component="form" onSubmit={handleSubmit} sx={{ mt: 2 }}>
+          <LocalizationProvider dateAdapter={AdapterDateFns}>
+            <DatePicker
+              label="Transaction Date"
+              value={formData.transactionDate}
+              onChange={handleDateChange}
+              renderInput={(params) => <TextField {...params} fullWidth sx={{ mb: 2 }} />}
+            />
+          </LocalizationProvider>
 
-            <Grid item xs={12}>
-              <LocalizationProvider dateAdapter={AdapterDateFns}>
-                <DatePicker
-                  label="Date"
-                  value={formValues.date}
-                  onChange={handleDateChange}
-                  renderInput={(params) => <TextField {...params} fullWidth required />}
-                />
-              </LocalizationProvider>
-            </Grid>
+          <TextField
+            fullWidth
+            label="Amount"
+            name="amount"
+            type="number"
+            value={formData.amount}
+            onChange={handleChange}
+            required
+            sx={{ mb: 2 }}
+          />
 
-            <Grid item xs={12}>
-              <TextField
-                fullWidth
-                label="Comments"
-                name="comments"
-                value={formValues.comments}
-                onChange={handleChange}
-                multiline
-                rows={2}
-              />
-            </Grid>
+          <TextField
+            fullWidth
+            label="Business Name"
+            name="businessName"
+            value={formData.businessName}
+            onChange={handleChange}
+            required
+            sx={{ mb: 2 }}
+          />
 
-            <Grid item xs={12}>
-              <FormControl component="fieldset">
-                <FormLabel component="legend">Essential</FormLabel>
-                <RadioGroup
-                  name="essential"
-                  value={formValues.essential}
-                  onChange={handleChange}
-                  row
-                >
-                  <FormControlLabel value="true" control={<Radio />} label="Yes" />
-                  <FormControlLabel value="false" control={<Radio />} label="No" />
-                </RadioGroup>
-              </FormControl>
-            </Grid>
-
-            <Grid item xs={12}>
-              <Button
-                type="submit"
-                variant="contained"
-                color="primary"
-                fullWidth
-                size="large"
-              >
-                Submit Transaction
-              </Button>
-            </Grid>
-          </Grid>
-        </form>
-
-        {submitted && (
-          <Box mt={2}>
-            <Typography
-              color={submissionSuccess ? "success.main" : "error.main"}
-              align="center"
+          <FormControl fullWidth sx={{ mb: 2 }}>
+            <InputLabel>Category</InputLabel>
+            <Select
+              name="category"
+              value={formData.category}
+              onChange={handleChange}
+              label="Category"
+              required
             >
-              {submissionSuccess
-                ? "Transaction submitted successfully!"
-                : `Error: ${submissionMessage}`}
-            </Typography>
-          </Box>
-        )}
+              {categories.map(category => (
+                <MenuItem key={category} value={category}>
+                  {category}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+
+          <TextField
+            fullWidth
+            label="Comments"
+            name="comment"
+            value={formData.comment}
+            onChange={handleChange}
+            multiline
+            rows={2}
+            sx={{ mb: 2 }}
+          />
+
+          <FormControlLabel
+            control={
+              <Switch
+                name="essential"
+                checked={formData.essential}
+                onChange={handleChange}
+              />
+            }
+            label="Essential Expense"
+            sx={{ mb: 2 }}
+          />
+
+          {error && (
+            <Alert severity="error" sx={{ mb: 2 }}>
+              {error}
+            </Alert>
+          )}
+
+          {success && (
+            <Alert severity="success" sx={{ mb: 2 }}>
+              Transaction added successfully!
+            </Alert>
+          )}
+
+          <Button
+            type="submit"
+            variant="contained"
+            color="primary"
+            fullWidth
+          >
+            Add Transaction
+          </Button>
+        </Box>
+
+        <DuplicateReviewModal
+          open={duplicateModal.open}
+          onClose={() => setDuplicateModal(prev => ({ ...prev, open: false }))}
+          duplicates={duplicateModal.duplicates}
+          newTransaction={duplicateModal.newTransaction}
+          onConfirm={handleDuplicateConfirm}
+        />
       </Paper>
 
-      <NewCategoryDialog
-        open={newCategoryDialogOpen}
-        onClose={() => setNewCategoryDialogOpen(false)}
-        categoryName={newCategoryName}
-        onCategoryNameChange={(e) => setNewCategoryName(e.target.value)}
-        onSubmit={handleNewCategorySubmit}
-        loading={newCategoryLoading}
-        error={newCategoryError}
-      />
-
       <TransactionList />
-    </Box>
+    </>
   );
 }
