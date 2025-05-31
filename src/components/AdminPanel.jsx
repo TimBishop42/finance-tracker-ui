@@ -35,7 +35,7 @@ export default function AdminPanel({ open, onClose }) {
 
   useEffect(() => {
     if (open) {
-      loadCategories();
+    loadCategories();
     }
   }, [open]);
 

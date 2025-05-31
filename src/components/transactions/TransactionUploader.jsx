@@ -20,7 +20,9 @@ import {
   FormControlLabel,
   Checkbox,
   Typography,
-  CircularProgress
+  CircularProgress,
+  FormControl,
+  InputLabel
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -46,6 +48,15 @@ export default function TransactionUploader() {
     open: false,
     duplicates: null
   });
+  const [columnMapping, setColumnMapping] = useState({
+    date: 0,
+    amount: 1,
+    business: 2
+  });
+  const [columnMappingOpen, setColumnMappingOpen] = useState(false);
+  const [csvHeaders, setCsvHeaders] = useState([]);
+  const [rawCsvData, setRawCsvData] = useState(null);
+  const MAX_TRANSACTIONS = 1000;
 
   // Load categories when component mounts
   useEffect(() => {
@@ -69,22 +80,86 @@ export default function TransactionUploader() {
       const reader = new FileReader();
       reader.onload = (e) => {
         const text = e.target.result;
-        const rows = text.split('\n')
-          .filter(row => row.trim()) // Skip empty lines
-          .map(row => {
-            const columns = row.split(',');
-            // Take only first 3 columns, ignore the rest
-            const [date, amount, description] = columns;
-            return {
-              transactionDate: new Date(date.trim().split('/').reverse().join('-')).toISOString(), // Convert DD/MM/YYYY to ISO
-              transactionAmount: Math.abs(parseFloat(amount.replace(/"/g, ''))), // Remove quotes and convert
-              transactionBusiness: description.trim()
-            };
-          });
-        setTransactions(rows);
-        setStage(2); // Move to review stage
+        const rows = text.split('\n').filter(row => row.trim());
+        
+        if (rows.length > MAX_TRANSACTIONS + 1) { // +1 for header
+          setError(`File contains too many transactions. Maximum allowed is ${MAX_TRANSACTIONS}.`);
+          return;
+        }
+
+        const headers = rows[0].split(/[,\t]/).map(h => h.trim());
+        setCsvHeaders(headers);
+        setRawCsvData(rows);
+        setColumnMappingOpen(true);
       };
       reader.readAsText(file);
+    }
+  };
+
+  const handleColumnMappingConfirm = () => {
+    if (!rawCsvData) return;
+
+    try {
+      console.log('Processing CSV data:', rawCsvData);
+      const rows = rawCsvData.slice(1); // Skip header row
+      console.log('Processing rows:', rows);
+      
+      const formattedTransactions = rows
+        .map(row => {
+          try {
+            const columns = row.split(/[,\t]/).map(col => col.trim());
+            const date = columns[columnMapping.date];
+            const amount = columns[columnMapping.amount];
+            const business = columns[columnMapping.business];
+            
+            // Skip row if any required field is empty
+            if (!date || !amount || !business) {
+              return null;
+            }
+
+            // Try to parse the date and amount
+            try {
+              // Parse DD/MM/YYYY format
+              const [day, month, year] = date.split('/').map(num => parseInt(num, 10));
+              const parsedDate = new Date(year, month - 1, day); // month is 0-based in JS Date
+              const parsedAmount = Math.abs(parseFloat(amount.replace(/"/g, '')));
+              
+              // Skip if date or amount is invalid
+              if (isNaN(parsedDate.getTime()) || isNaN(parsedAmount)) {
+                return null;
+              }
+
+              return {
+                transactionDate: parsedDate.toISOString(),
+                transactionAmount: parsedAmount,
+                transactionBusiness: business
+              };
+            } catch (parseError) {
+              console.warn('Failed to parse date or amount:', { date, amount });
+              return null;
+            }
+          } catch (rowError) {
+            console.warn('Error processing row:', row);
+            return null;
+          }
+        })
+        .filter(t => t !== null); // Remove any failed rows
+
+      console.log('Formatted transactions:', formattedTransactions);
+      
+      if (formattedTransactions.length === 0) {
+        setError('No valid transactions found in the file');
+        setColumnMappingOpen(false);
+        return;
+      }
+
+      setTransactions(formattedTransactions);
+      setStage(2);
+      setColumnMappingOpen(false);
+    } catch (error) {
+      console.error('Error processing CSV:', error);
+      setError('Error processing CSV file. Please check the format and try again.');
+      setColumnMappingOpen(false);
     }
   };
 
@@ -387,6 +462,63 @@ export default function TransactionUploader() {
             disabled={newCategoryLoading || !newCategoryName.trim()}
           >
             {newCategoryLoading ? <CircularProgress size={24} /> : 'Add Category'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={columnMappingOpen} onClose={() => setColumnMappingOpen(false)}>
+        <DialogTitle>Map CSV Columns</DialogTitle>
+        <DialogContent>
+          <Box sx={{ mt: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <Typography variant="subtitle2">Available Columns:</Typography>
+            <Typography variant="body2" color="text.secondary">
+              {csvHeaders.join(', ')}
+            </Typography>
+            
+            <FormControl fullWidth>
+              <InputLabel>Date Column</InputLabel>
+              <Select
+                value={columnMapping.date}
+                onChange={(e) => setColumnMapping(prev => ({ ...prev, date: e.target.value }))}
+                label="Date Column"
+              >
+                {csvHeaders.map((header, index) => (
+                  <MenuItem key={`date-${index}`} value={index}>{header}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+
+            <FormControl fullWidth>
+              <InputLabel>Amount Column</InputLabel>
+              <Select
+                value={columnMapping.amount}
+                onChange={(e) => setColumnMapping(prev => ({ ...prev, amount: e.target.value }))}
+                label="Amount Column"
+              >
+                {csvHeaders.map((header, index) => (
+                  <MenuItem key={`amount-${index}`} value={index}>{header}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+
+            <FormControl fullWidth>
+              <InputLabel>Business Name Column</InputLabel>
+              <Select
+                value={columnMapping.business}
+                onChange={(e) => setColumnMapping(prev => ({ ...prev, business: e.target.value }))}
+                label="Business Name Column"
+              >
+                {csvHeaders.map((header, index) => (
+                  <MenuItem key={`business-${index}`} value={index}>{header}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setColumnMappingOpen(false)}>Cancel</Button>
+          <Button onClick={handleColumnMappingConfirm} variant="contained">
+            Confirm Mapping
           </Button>
         </DialogActions>
       </Dialog>
