@@ -117,4 +117,22 @@ export const setMaxSpendValue = async (value) => {
     console.error('Error setting max spend value:', error);
     throw error;
   }
+};
+
+export const trainModel = async () => {
+  try {
+    const response = await fetch('/api/finance/train-model', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+    if (!response.ok) {
+      throw new Error('Failed to train model');
+    }
+    return await response.json();
+  } catch (error) {
+    console.error('Error training model:', error);
+    throw error;
+  }
 }; 

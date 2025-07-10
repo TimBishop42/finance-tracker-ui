@@ -17,8 +17,6 @@ import {
   Select,
   MenuItem,
   TextField,
-  FormControlLabel,
-  Checkbox,
   Typography,
   CircularProgress,
   FormControl,
@@ -36,7 +34,6 @@ export default function TransactionUploader() {
   const [categories, setCategories] = useState([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [stage, setStage] = useState(1); // 1 for upload, 2 for review
-  const [dryRun, setDryRun] = useState(false);
   const [error, setError] = useState(null);
   const [newCategoryDialogOpen, setNewCategoryDialogOpen] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState("");
@@ -227,7 +224,7 @@ export default function TransactionUploader() {
 
     RestClient.post('/finance/submit-transaction-batch', { 
       transactionJsonList: formattedTransactions,
-      dryRun: dryRun 
+      dryRun: false 
     })
       .then(response => {
         console.log('Batch response:', response.data);
@@ -414,16 +411,6 @@ export default function TransactionUploader() {
               </Table>
             </TableContainer>
             <Box sx={{ mt: 2, display: 'flex', alignItems: 'center', gap: 2 }}>
-              <FormControlLabel
-                control={
-                  <Checkbox
-                    checked={dryRun}
-                    onChange={(e) => setDryRun(e.target.checked)}
-                    color="primary"
-                  />
-                }
-                label="Dry Run (Don't save transactions)"
-              />
               <Button
                 variant="contained"
                 color="primary"
