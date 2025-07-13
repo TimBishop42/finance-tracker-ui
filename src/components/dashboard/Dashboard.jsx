@@ -6,11 +6,14 @@ import {
   Typography,
   Box,
   CircularProgress,
+  IconButton,
 } from '@mui/material';
 import {
   TrendingUp,
   TrendingDown,
   AccountBalance,
+  ArrowBackIos,
+  ArrowForwardIos,
 } from '@mui/icons-material';
 import {
   ComposedChart,
@@ -73,8 +76,25 @@ const SummaryCard = ({ title, value, icon, trend, color, loading, subtitle }) =>
   </Card>
 );
 
-const SpendingChart = ({ data, targetSpend }) => {
+const SpendingChart = ({ data, targetSpend, selectedMonth, selectedYear, onNavigateMonth, loading }) => {
   console.log('SpendingChart received targetSpend:', targetSpend);
+  
+  // Format month/year for display
+  const monthNames = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'
+  ];
+  const displayTitle = selectedMonth && selectedYear 
+    ? `${monthNames[selectedMonth - 1]} ${selectedYear} Spending Trend`
+    : 'Monthly Spending Trend';
+  
+  if (loading) {
+    return (
+      <Box sx={{ p: 3, textAlign: 'center', height: 400, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <CircularProgress />
+      </Box>
+    );
+  }
   
   if (!data || data.length === 0) {
     return (
@@ -91,9 +111,27 @@ const SpendingChart = ({ data, targetSpend }) => {
 
   return (
     <Box sx={{ p: 3, height: 400 }}>
-      <Typography variant="h6" gutterBottom>
-        Monthly Spending Trend
-      </Typography>
+      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
+        <IconButton 
+          onClick={() => onNavigateMonth('prev')}
+          disabled={loading}
+          sx={{ mr: 2 }}
+        >
+          <ArrowBackIos />
+        </IconButton>
+        
+        <Typography variant="h6" sx={{ textAlign: 'center', flexGrow: 1 }}>
+          {displayTitle}
+        </Typography>
+        
+        <IconButton 
+          onClick={() => onNavigateMonth('next')}
+          disabled={loading}
+          sx={{ ml: 2 }}
+        >
+          <ArrowForwardIos />
+        </IconButton>
+      </Box>
       <ResponsiveContainer width="100%" height="100%">
         <ComposedChart data={processedData}>
           <CartesianGrid strokeDasharray="3 3" />
@@ -151,16 +189,73 @@ export default function Dashboard() {
   const [summaryData, setSummaryData] = useState(null);
   const [cumulativeData, setCumulativeData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [chartLoading, setChartLoading] = useState(false);
   const [error, setError] = useState(null);
   const [targetSpend, setTargetSpend] = useState(12000);
+  
+  // Month navigation state
+  const currentDate = new Date();
+  const [selectedMonth, setSelectedMonth] = useState(currentDate.getMonth() + 1); // 1-12
+  const [selectedYear, setSelectedYear] = useState(currentDate.getFullYear());
+
+  // Function to fetch cumulative data for specific month/year
+  const fetchCumulativeData = async (month, year) => {
+    try {
+      setChartLoading(true);
+      const cumulativeSpend = await getCumulativeSpend(month, year);
+      
+      // Transform cumulative data for the chart
+      const chartData = cumulativeSpend.cumulativeValues.map((value, index) => ({
+        name: index + 1,
+        amount: parseFloat(value)
+      }));
+      setCumulativeData(chartData);
+    } catch (err) {
+      console.error('Error fetching cumulative data:', err);
+      setError(err.message);
+    } finally {
+      setChartLoading(false);
+    }
+  };
+
+  // Navigation function
+  const handleNavigateMonth = (direction) => {
+    let newMonth = selectedMonth;
+    let newYear = selectedYear;
+    
+    if (direction === 'prev') {
+      newMonth -= 1;
+      if (newMonth < 1) {
+        newMonth = 12;
+        newYear -= 1;
+      }
+    } else if (direction === 'next') {
+      newMonth += 1;
+      if (newMonth > 12) {
+        newMonth = 1;
+        newYear += 1;
+      }
+    }
+    
+    // Don't navigate to future months beyond current
+    const currentDate = new Date();
+    const currentMonth = currentDate.getMonth() + 1;
+    const currentYear = currentDate.getFullYear();
+    
+    if (newYear > currentYear || (newYear === currentYear && newMonth > currentMonth)) {
+      return; // Don't navigate to future
+    }
+    
+    setSelectedMonth(newMonth);
+    setSelectedYear(newYear);
+  };
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [monthlyComparison, summaryMonths, cumulativeSpend, maxSpend] = await Promise.all([
+        const [monthlyComparison, summaryMonths, maxSpend] = await Promise.all([
           getMonthlySpendComparison(),
           getSummaryMonths(2),
-          getCumulativeSpend(),
           getMaxSpendValue()
         ]);
         console.log('Fetched max spend value:', maxSpend);
@@ -168,12 +263,6 @@ export default function Dashboard() {
         setSummaryData(summaryMonths);
         setTargetSpend(maxSpend);
         
-        // Transform cumulative data for the chart
-        const chartData = cumulativeSpend.cumulativeValues.map((value, index) => ({
-          name: index + 1,
-          amount: parseFloat(value)
-        }));
-        setCumulativeData(chartData);
       } catch (err) {
         console.error('Error fetching data:', err);
         setError(err.message);
@@ -184,6 +273,20 @@ export default function Dashboard() {
 
     fetchData();
   }, []);
+
+  // Fetch cumulative data when month/year changes
+  useEffect(() => {
+    if (!loading) { // Only fetch after initial load
+      fetchCumulativeData(selectedMonth, selectedYear);
+    }
+  }, [selectedMonth, selectedYear, loading]);
+
+  // Fetch initial cumulative data
+  useEffect(() => {
+    if (!loading && !cumulativeData) {
+      fetchCumulativeData(selectedMonth, selectedYear);
+    }
+  }, [loading]);
 
   // Poll for target spend changes
   useEffect(() => {
@@ -259,7 +362,14 @@ export default function Dashboard() {
         </Grid>
       </Grid>
       {console.log('Rendering chart with target spend:', targetSpend)}
-      <SpendingChart data={cumulativeData} targetSpend={targetSpend} />
+      <SpendingChart 
+        data={cumulativeData} 
+        targetSpend={targetSpend}
+        selectedMonth={selectedMonth}
+        selectedYear={selectedYear}
+        onNavigateMonth={handleNavigateMonth}
+        loading={chartLoading}
+      />
     </Box>
   );
 } 

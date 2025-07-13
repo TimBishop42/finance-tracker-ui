@@ -11,9 +11,14 @@ export const getMonthlySpendComparison = async () => {
   }
 };
 
-export const getCumulativeSpend = async () => {
+export const getCumulativeSpend = async (month = null, year = null) => {
   try {
-    const response = await fetch('/api/finance/get-cumulative-spend');
+    let url = '/api/finance/get-cumulative-spend';
+    if (month && year) {
+      url += `?month=${month}&year=${year}`;
+    }
+    
+    const response = await fetch(url);
     if (!response.ok) {
       throw new Error('Failed to fetch cumulative spend data');
     }
