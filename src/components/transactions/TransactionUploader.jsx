@@ -53,7 +53,30 @@ export default function TransactionUploader() {
   const [columnMappingOpen, setColumnMappingOpen] = useState(false);
   const [csvHeaders, setCsvHeaders] = useState([]);
   const [rawCsvData, setRawCsvData] = useState(null);
+  const [dateFormat, setDateFormat] = useState('DD/MM/YYYY');
   const MAX_TRANSACTIONS = 1000;
+  const DATE_FORMATS = ['DD/MM/YYYY', 'MM/DD/YYYY', 'YYYY-MM-DD', 'DD-MM-YYYY'];
+
+  const parseDateString = (value, format) => {
+    const parts = value.match(/\d+/g);
+    if (!parts || parts.length < 3) return null;
+
+    const tokens = format.split(/[-/]/);
+    const tokenIndex = tokens.reduce((acc, token, index) => {
+      acc[token] = index;
+      return acc;
+    }, {});
+
+    const day = parseInt(parts[tokenIndex.DD], 10);
+    const month = parseInt(parts[tokenIndex.MM], 10);
+    const year = parseInt(parts[tokenIndex.YYYY], 10);
+
+    if ([day, month, year].some(n => Number.isNaN(n))) return null;
+    if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+
+    const parsed = new Date(year, month - 1, day);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  };
 
   // Load categories when component mounts
   useEffect(() => {
@@ -116,13 +139,11 @@ export default function TransactionUploader() {
 
             // Try to parse the date and amount
             try {
-              // Parse DD/MM/YYYY format
-              const [day, month, year] = date.split('/').map(num => parseInt(num, 10));
-              const parsedDate = new Date(year, month - 1, day); // month is 0-based in JS Date
+              const parsedDate = parseDateString(date, dateFormat);
               const parsedAmount = Math.abs(parseFloat(amount.replace(/"/g, '')));
               
               // Skip if date or amount is invalid
-              if (isNaN(parsedDate.getTime()) || isNaN(parsedAmount)) {
+              if (!parsedDate || isNaN(parsedAmount)) {
                 return null;
               }
 
@@ -324,7 +345,7 @@ export default function TransactionUploader() {
           <Box>
             <Typography variant="body1" gutterBottom>
               Upload a CSV file with transactions. The file should have the following columns:
-              Date (DD/MM/YYYY), Amount, Description
+              Date, Amount, Description. You can select the date format after upload.
             </Typography>
             <input
               type="file"
@@ -497,6 +518,19 @@ export default function TransactionUploader() {
               >
                 {csvHeaders.map((header, index) => (
                   <MenuItem key={`business-${index}`} value={index}>{header}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+
+            <FormControl fullWidth>
+              <InputLabel>Date Format</InputLabel>
+              <Select
+                value={dateFormat}
+                onChange={(e) => setDateFormat(e.target.value)}
+                label="Date Format"
+              >
+                {DATE_FORMATS.map(format => (
+                  <MenuItem key={format} value={format}>{format}</MenuItem>
                 ))}
               </Select>
             </FormControl>
