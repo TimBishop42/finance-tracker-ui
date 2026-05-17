@@ -72,21 +72,17 @@ export default function TransactionForm({ onTransactionAdded }) {
     setError(null);
     setSuccess(false);
 
-    console.log('Form data amount:', formData.amount);
     const payload = {
       ...formData,
       transactionDate: formData.transactionDate.getTime(),
       transactionBusiness: formData.businessName || '',
       duplicateReviewed: false
     };
-    console.log('Submitting transaction with payload:', payload);
 
     try {
       const response = await RestClient.post('/finance/submit-transaction', payload);
-      console.log('API response:', response.data);
 
       if (response.data.hasDuplicates) {
-        console.log('Duplicates found:', response.data.duplicates);
         setDuplicateModal({
           open: true,
           duplicates: response.data.duplicates
@@ -116,19 +112,14 @@ export default function TransactionForm({ onTransactionAdded }) {
     setDuplicateModal(prev => ({ ...prev, open: false }));
     try {
       const transaction = transactionsToSave[0];
-      console.log('Transaction from modal:', transaction);
-      console.log('Amount from modal:', transaction.amount);
-      
       const payload = {
         ...transaction,
         transactionDate: transaction.transactionDateTime,
         transactionBusiness: transaction.businessName || '',
         duplicateReviewed: true
       };
-      console.log('Payload to API:', payload);
 
       const response = await RestClient.post('/finance/submit-transaction', payload);
-      console.log('Final API response:', response.data);
 
       if (response.data) {
         setSuccess(true);

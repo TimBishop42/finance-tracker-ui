@@ -77,8 +77,6 @@ const SummaryCard = ({ title, value, icon, trend, color, loading, subtitle }) =>
 );
 
 const SpendingChart = ({ data, targetSpend, selectedMonth, selectedYear, onNavigateMonth, loading }) => {
-  console.log('SpendingChart received targetSpend:', targetSpend);
-  
   // Format month/year for display
   const monthNames = [
     'January', 'February', 'March', 'April', 'May', 'June',
@@ -258,7 +256,6 @@ export default function Dashboard() {
           getSummaryMonths(2),
           getMaxSpendValue()
         ]);
-        console.log('Fetched max spend value:', maxSpend);
         setMonthlyData(monthlyComparison);
         setSummaryData(summaryMonths);
         setTargetSpend(maxSpend);
@@ -294,7 +291,6 @@ export default function Dashboard() {
       try {
         const maxSpend = await getMaxSpendValue();
         if (maxSpend !== targetSpend) {
-          console.log('Target spend updated:', maxSpend);
           setTargetSpend(maxSpend);
         }
       } catch (err) {
@@ -361,8 +357,7 @@ export default function Dashboard() {
           />
         </Grid>
       </Grid>
-      {console.log('Rendering chart with target spend:', targetSpend)}
-      <SpendingChart 
+      <SpendingChart
         data={cumulativeData} 
         targetSpend={targetSpend}
         selectedMonth={selectedMonth}

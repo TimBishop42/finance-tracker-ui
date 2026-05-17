@@ -24,6 +24,8 @@ import {
   LightMode as LightModeIcon,
   Home as HomeIcon,
   Settings as SettingsIcon,
+  CalendarMonth as CalendarMonthIcon,
+  Loop as LoopIcon,
 } from '@mui/icons-material';
 import { useNavigate, useLocation } from 'react-router-dom';
 import SettingsDialog from '../settings/SettingsDialog';
@@ -79,6 +81,8 @@ const menuItems = [
   { text: 'Add Transaction', icon: <AddIcon />, path: '/add-transaction' },
   { text: 'Bulk Upload', icon: <UploadIcon />, path: '/bulk-upload' },
   { text: 'Details Summary', icon: <AssessmentIcon />, path: '/summary' },
+  { text: 'Spend Heatmap', icon: <CalendarMonthIcon />, path: '/heatmap' },
+  { text: 'Recurring', icon: <LoopIcon />, path: '/recurring' },
 ];
 
 export default function Layout({ children, onToggleColorMode, mode }) {

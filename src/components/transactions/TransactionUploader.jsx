@@ -120,9 +120,7 @@ export default function TransactionUploader() {
     if (!rawCsvData) return;
 
     try {
-      console.log('Processing CSV data:', rawCsvData);
       const rows = rawCsvData.slice(1); // Skip header row
-      console.log('Processing rows:', rows);
       
       const formattedTransactions = rows
         .map(row => {
@@ -163,8 +161,6 @@ export default function TransactionUploader() {
         })
         .filter(t => t !== null); // Remove any failed rows
 
-      console.log('Formatted transactions:', formattedTransactions);
-      
       if (formattedTransactions.length === 0) {
         setError('No valid transactions found in the file');
         setColumnMappingOpen(false);
@@ -248,19 +244,15 @@ export default function TransactionUploader() {
       dryRun: false 
     })
       .then(response => {
-        console.log('Batch response:', response.data);
         // Handle array response
         const responseData = Array.isArray(response.data) ? response.data[0] : response.data;
-        console.log('Processed response:', responseData);
-        
+
         if (responseData.hasDuplicates) {
-          console.log('Setting duplicate modal with:', responseData.duplicates);
           setDuplicateModal({
             open: true,
             duplicates: responseData.duplicates
           });
         } else {
-          console.log('Batch submitted:', responseData);
           setTransactions([]);
           setStage(1);
         }
@@ -277,21 +269,15 @@ export default function TransactionUploader() {
   const handleDuplicateConfirm = async (transactionsToSave) => {
     setDuplicateModal(prev => ({ ...prev, open: false }));
     try {
-      console.log('Raw transactions from modal:', transactionsToSave);
-      const formattedTransactions = transactionsToSave.map(t => {
-        console.log('Raw transaction:', t);
-        // The transaction is directly in the object, not in newTransaction
-        return {
-          userCorrectedCategory: t.category,
-          amount: t.amount.toString(),
-          transactionDate: t.transactionDateTime,
-          transactionBusiness: t.businessName || '',
-          comment: t.comment || '',
-          essential: t.essential || false,
-          duplicateReviewed: true
-        };
-      });
-      console.log('Formatted transactions:', formattedTransactions);
+      const formattedTransactions = transactionsToSave.map(t => ({
+        userCorrectedCategory: t.category,
+        amount: t.amount.toString(),
+        transactionDate: t.transactionDateTime,
+        transactionBusiness: t.businessName || '',
+        comment: t.comment || '',
+        essential: t.essential || false,
+        duplicateReviewed: true
+      }));
 
       const response = await RestClient.post('/finance/submit-transaction-batch', {
         transactionJsonList: formattedTransactions,

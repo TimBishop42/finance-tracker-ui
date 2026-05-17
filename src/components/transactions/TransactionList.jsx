@@ -41,7 +41,6 @@ export default function TransactionList() {
   const fetchTransactions = async () => {
     try {
       const response = await RestClient.get(`/finance/find-all-transactions?recentMonth=${recentMonthOnly}`);
-      console.log('Transaction response:', response.data);
       setTransactions(response.data);
       setLoading(false);
     } catch (err) {
@@ -56,19 +55,15 @@ export default function TransactionList() {
   };
 
   const handleDeleteClick = (transactionId) => {
-    console.log('Transaction to delete:', transactionId);
     setDeleteDialog({ open: true, transactionId });
   };
 
   const handleDeleteConfirm = async () => {
     try {
-      console.log('Dialog state:', deleteDialog);
       const payload = JSON.stringify({
         transactionId: deleteDialog.transactionId
       });
-      console.log('Delete payload:', payload);
       const response = await RestClient.post('/finance/delete-transaction', payload);
-      console.log('Delete response:', response);
       setDeleteDialog({ open: false, transactionId: null });
       fetchTransactions(); // Refresh the list
     } catch (err) {

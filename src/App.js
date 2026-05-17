@@ -7,6 +7,8 @@ import Dashboard from './components/dashboard/Dashboard';
 import TransactionForm from './components/transactions/TransactionForm';
 import TransactionUploader from './components/transactions/TransactionUploader';
 import AggregateData from './components/dashboard/AggregateData';
+import SpendingHeatmap from './components/dashboard/SpendingHeatmap';
+import RecurringTransactions from './components/dashboard/RecurringTransactions';
 import { CategoriesProvider } from './context/CategoriesContext';
 
 function App() {
@@ -43,6 +45,8 @@ function App() {
               <Route path="/add-transaction" element={<TransactionForm />} />
               <Route path="/bulk-upload" element={<TransactionUploader />} />
               <Route path="/summary" element={<AggregateData />} />
+              <Route path="/heatmap" element={<SpendingHeatmap />} />
+              <Route path="/recurring" element={<RecurringTransactions />} />
               <Route path="*" element={<Dashboard />} />
             </Routes>
           </Layout>

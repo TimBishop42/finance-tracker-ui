@@ -111,19 +111,15 @@ export default function SettingsDialog({ open, onClose }) {
   };
 
   const handleMaxSpendSave = async () => {
-    console.log('Save button clicked');
     const value = parseInt(maxSpendInput);
-    console.log('Parsed value:', value);
     if (isNaN(value) || value <= 0) {
       setMaxSpendError('Please enter a valid number greater than 0');
       return;
     }
 
     try {
-      console.log('Calling updateMaxSpendValue with:', value);
       setMaxSpendLoading(true);
       await updateMaxSpendValue(value);
-      console.log('updateMaxSpendValue completed successfully');
       setMaxSpendValue(value);
       setMaxSpendError(null);
     } catch (err) {
