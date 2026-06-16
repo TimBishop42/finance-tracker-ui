@@ -27,6 +27,7 @@ import {
   CalendarMonth as CalendarMonthIcon,
   Loop as LoopIcon,
   CalendarToday as CalendarTodayIcon,
+  Savings as SavingsIcon,
 } from "@mui/icons-material";
 import { useNavigate, useLocation } from "react-router-dom";
 import SettingsDialog from "../settings/SettingsDialog";
@@ -85,6 +86,7 @@ const menuItems = [
   { text: "Spend Heatmap", icon: <CalendarMonthIcon />, path: "/heatmap" },
   { text: "Recurring", icon: <LoopIcon />, path: "/recurring" },
   { text: "Bill Calendar", icon: <CalendarTodayIcon />, path: "/calendar" },
+  { text: "Super Forecast", icon: <SavingsIcon />, path: "/super" },
 ];
 
 export default function Layout({ children, onToggleColorMode, mode }) {

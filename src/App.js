@@ -10,6 +10,7 @@ import AggregateData from "./components/dashboard/AggregateData";
 import SpendingHeatmap from "./components/dashboard/SpendingHeatmap";
 import RecurringTransactions from "./components/dashboard/RecurringTransactions";
 import BillCalendar from "./components/dashboard/BillCalendar";
+import SuperTracker from "./components/super/SuperTracker";
 import { CategoriesProvider } from "./context/CategoriesContext";
 
 function App() {
@@ -49,6 +50,7 @@ function App() {
               <Route path="/heatmap" element={<SpendingHeatmap />} />
               <Route path="/recurring" element={<RecurringTransactions />} />
               <Route path="/calendar" element={<BillCalendar />} />
+              <Route path="/super" element={<SuperTracker />} />
               <Route path="*" element={<Dashboard />} />
             </Routes>
           </Layout>
