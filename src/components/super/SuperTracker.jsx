@@ -32,8 +32,10 @@ import {
   projectSuper,
   DEFAULT_SUPER_INPUTS,
 } from "../../services/superProjection";
+import { useSalaryHistory } from "../../services/useSalaryHistory";
 
 const STORAGE_KEY = "superInputs";
+const FALLBACK_SALARY = 90000;
 
 const currency = new Intl.NumberFormat("en-AU", {
   style: "currency",
@@ -131,6 +133,7 @@ function ChartTooltip({ active, payload, label }) {
 
 export default function SuperTracker() {
   const [inputs, setInputs] = useState(loadInputs);
+  const { current } = useSalaryHistory();
 
   useEffect(() => {
     try {
@@ -144,7 +147,25 @@ export default function SuperTracker() {
     setInputs((prev) => ({ ...prev, [field]: value }));
   const setBool = (field) => (e) => setField(field, e.target.checked);
 
-  const { series, summary } = useMemo(() => projectSuper(inputs), [inputs]);
+  // Salary that drives contributions: the latest tracked salary, unless the user
+  // has switched on a temporary what-if override.
+  const trackedSalary = current ? current.amount : null;
+  const overrideOn = !!inputs.overrideSalary;
+  const fallbackSalary =
+    trackedSalary != null ? trackedSalary : FALLBACK_SALARY;
+  const overrideVal = inputs.salaryOverrideValue;
+  const effectiveSalary = overrideOn
+    ? overrideVal === "" || overrideVal == null
+      ? fallbackSalary
+      : Number(overrideVal) || 0
+    : fallbackSalary;
+
+  const projectionInput = { ...inputs, annualSalary: effectiveSalary };
+  const { series, summary } = useMemo(
+    () => projectSuper(projectionInput),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [inputs, effectiveSalary],
+  );
 
   const useReal = inputs.displayMode === "real";
   const { retirementAge } = summary;
@@ -241,6 +262,78 @@ export default function SuperTracker() {
 
             <Divider sx={{ my: 2 }} />
             <Typography variant="subtitle1" gutterBottom>
+              Salary &amp; contributions
+            </Typography>
+            <Grid container spacing={1.5} alignItems="center">
+              <Grid item xs={12}>
+                {!overrideOn && trackedSalary != null && (
+                  <Typography variant="body2">
+                    Salary (from your history):{" "}
+                    <strong>{fmt(trackedSalary)}</strong>/yr
+                  </Typography>
+                )}
+                {!overrideOn && trackedSalary == null && (
+                  <Typography variant="body2" color="text.secondary">
+                    No tracked salary yet — using {fmt(FALLBACK_SALARY)}. Add
+                    one in &ldquo;Salary &amp; Pay&rdquo;, or override below.
+                  </Typography>
+                )}
+              </Grid>
+              <Grid item xs={12}>
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={overrideOn}
+                      onChange={setBool("overrideSalary")}
+                    />
+                  }
+                  label="Override salary (what-if only — not saved)"
+                />
+              </Grid>
+              {overrideOn && (
+                <Grid item xs={12}>
+                  <NumField
+                    label="Override salary"
+                    field="salaryOverrideValue"
+                    value={inputs.salaryOverrideValue ?? fallbackSalary}
+                    onChange={setField}
+                    adornment="$"
+                    step={1000}
+                  />
+                </Grid>
+              )}
+              <Grid item xs={6}>
+                <NumField
+                  label="Super Guarantee"
+                  field="sgRate"
+                  value={inputs.sgRate}
+                  onChange={setField}
+                  adornment="%"
+                  step={0.5}
+                />
+              </Grid>
+              <Grid item xs={6}>
+                <NumField
+                  label="Salary sacrifice / yr"
+                  field="salarySacrificeAnnual"
+                  value={inputs.salarySacrificeAnnual}
+                  onChange={setField}
+                  adornment="$"
+                  step={500}
+                />
+              </Grid>
+              <Grid item xs={12}>
+                <Typography variant="caption" color="text.secondary">
+                  Derived contributions:{" "}
+                  <strong>{fmt(summary.annualContribution)}</strong>/yr (
+                  {fmt(summary.monthlyContribution)}/mo) — concessional; 15%
+                  contributions tax applies if the toggle below is on.
+                </Typography>
+              </Grid>
+            </Grid>
+
+            <Divider sx={{ my: 2 }} />
+            <Typography variant="subtitle1" gutterBottom>
               Accumulation
             </Typography>
             <Grid container spacing={1.5}>
@@ -252,16 +345,6 @@ export default function SuperTracker() {
                   onChange={setField}
                   adornment="$"
                   step={1000}
-                />
-              </Grid>
-              <Grid item xs={6}>
-                <NumField
-                  label="Monthly contribution"
-                  field="monthlyContribution"
-                  value={inputs.monthlyContribution}
-                  onChange={setField}
-                  adornment="$"
-                  step={50}
                 />
               </Grid>
               <Grid item xs={6}>

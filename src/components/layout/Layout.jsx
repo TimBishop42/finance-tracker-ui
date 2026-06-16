@@ -28,6 +28,7 @@ import {
   Loop as LoopIcon,
   CalendarToday as CalendarTodayIcon,
   Savings as SavingsIcon,
+  Payments as PaymentsIcon,
 } from "@mui/icons-material";
 import { useNavigate, useLocation } from "react-router-dom";
 import SettingsDialog from "../settings/SettingsDialog";
@@ -87,6 +88,7 @@ const menuItems = [
   { text: "Recurring", icon: <LoopIcon />, path: "/recurring" },
   { text: "Bill Calendar", icon: <CalendarTodayIcon />, path: "/calendar" },
   { text: "Super Forecast", icon: <SavingsIcon />, path: "/super" },
+  { text: "Salary & Pay", icon: <PaymentsIcon />, path: "/salary" },
 ];
 
 export default function Layout({ children, onToggleColorMode, mode }) {

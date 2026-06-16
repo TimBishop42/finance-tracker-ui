@@ -11,6 +11,7 @@ import SpendingHeatmap from "./components/dashboard/SpendingHeatmap";
 import RecurringTransactions from "./components/dashboard/RecurringTransactions";
 import BillCalendar from "./components/dashboard/BillCalendar";
 import SuperTracker from "./components/super/SuperTracker";
+import SalaryTracker from "./components/salary/SalaryTracker";
 import { CategoriesProvider } from "./context/CategoriesContext";
 
 function App() {
@@ -51,6 +52,7 @@ function App() {
               <Route path="/recurring" element={<RecurringTransactions />} />
               <Route path="/calendar" element={<BillCalendar />} />
               <Route path="/super" element={<SuperTracker />} />
+              <Route path="/salary" element={<SalaryTracker />} />
               <Route path="*" element={<Dashboard />} />
             </Routes>
           </Layout>

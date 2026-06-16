@@ -36,7 +36,10 @@ export const DEFAULT_SUPER_INPUTS = {
   endAge: 90, // plan-to age (projection horizon)
   // Accumulation
   startingBalance: 50000,
-  monthlyContribution: 1500, // net or gross depending on the tax toggle below
+  // Contributions are derived from salary when `annualSalary` is supplied (the UI
+  // feeds the latest tracked salary); `monthlyContribution` is the fallback.
+  sgRate: 12, // Super Guarantee %
+  salarySacrificeAnnual: 0, // extra pre-tax (concessional) contributions per year
   contributionGrowthPct: 3.7, // wage inflation — grows contributions each year
   returnAccumPct: 7.5, // gross return before fees/tax (MoneySmart docs ~8%)
   earningsTaxAccumPct: 7, // ~7% effective earnings tax in accumulation (0 = model a net return)
@@ -115,8 +118,20 @@ export function projectSuper(input) {
 
   pushPoint(currentAge);
 
+  // Derive the monthly concessional contribution. Prefer an annual salary
+  // (× SG% + salary sacrifice) when supplied — the UI feeds the latest tracked
+  // salary; otherwise fall back to an explicit monthlyContribution.
+  const sgRate = num(i.sgRate, 12) / 100;
+  const hasSalary =
+    i.annualSalary !== undefined &&
+    i.annualSalary !== null &&
+    i.annualSalary !== "";
+  const derivedMonthlyContribution = hasSalary
+    ? (num(i.annualSalary) * sgRate + num(i.salarySacrificeAnnual)) / 12
+    : num(i.monthlyContribution);
+
   // --- Accumulation phase ---
-  let contribMonthly = Math.max(0, num(i.monthlyContribution));
+  let contribMonthly = Math.max(0, derivedMonthlyContribution);
   for (let age = currentAge; age < retirementAge; age++) {
     for (let m = 0; m < 12; m++) {
       const contrib = contribMonthly * (1 - contribTaxRate);
@@ -186,6 +201,8 @@ export function projectSuper(input) {
     moneyLasts: depletionAge === null,
     lastsUntilAge: depletionAge === null ? endAge : Math.floor(depletionAge),
     totalContributions,
+    monthlyContribution: derivedMonthlyContribution,
+    annualContribution: derivedMonthlyContribution * 12,
   };
 
   return { series, summary };
