@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { styled } from '@mui/material/styles';
+import React, { useState } from "react";
+import { styled } from "@mui/material/styles";
 import {
   Box,
   Drawer,
@@ -13,7 +13,7 @@ import {
   ListItemIcon,
   ListItemText,
   Switch,
-} from '@mui/material';
+} from "@mui/material";
 import {
   Menu as MenuIcon,
   ChevronLeft as ChevronLeftIcon,
@@ -26,23 +26,24 @@ import {
   Settings as SettingsIcon,
   CalendarMonth as CalendarMonthIcon,
   Loop as LoopIcon,
-} from '@mui/icons-material';
-import { useNavigate, useLocation } from 'react-router-dom';
-import SettingsDialog from '../settings/SettingsDialog';
+  CalendarToday as CalendarTodayIcon,
+} from "@mui/icons-material";
+import { useNavigate, useLocation } from "react-router-dom";
+import SettingsDialog from "../settings/SettingsDialog";
 
 const drawerWidth = 240;
 
-const Main = styled('main', { shouldForwardProp: (prop) => prop !== 'open' })(
+const Main = styled("main", { shouldForwardProp: (prop) => prop !== "open" })(
   ({ theme, open }) => ({
     flexGrow: 1,
     padding: theme.spacing(3),
-    transition: theme.transitions.create('margin', {
+    transition: theme.transitions.create("margin", {
       easing: theme.transitions.easing.sharp,
       duration: theme.transitions.duration.leavingScreen,
     }),
     marginLeft: `-${drawerWidth}px`,
     ...(open && {
-      transition: theme.transitions.create('margin', {
+      transition: theme.transitions.create("margin", {
         easing: theme.transitions.easing.easeOut,
         duration: theme.transitions.duration.enteringScreen,
       }),
@@ -51,38 +52,39 @@ const Main = styled('main', { shouldForwardProp: (prop) => prop !== 'open' })(
   }),
 );
 
-const AppBarStyled = styled(AppBar, { shouldForwardProp: (prop) => prop !== 'open' })(
-  ({ theme, open }) => ({
-    transition: theme.transitions.create(['margin', 'width'], {
-      easing: theme.transitions.easing.sharp,
-      duration: theme.transitions.duration.leavingScreen,
-    }),
-    ...(open && {
-      width: `calc(100% - ${drawerWidth}px)`,
-      marginLeft: `${drawerWidth}px`,
-      transition: theme.transitions.create(['margin', 'width'], {
-        easing: theme.transitions.easing.easeOut,
-        duration: theme.transitions.duration.enteringScreen,
-      }),
+const AppBarStyled = styled(AppBar, {
+  shouldForwardProp: (prop) => prop !== "open",
+})(({ theme, open }) => ({
+  transition: theme.transitions.create(["margin", "width"], {
+    easing: theme.transitions.easing.sharp,
+    duration: theme.transitions.duration.leavingScreen,
+  }),
+  ...(open && {
+    width: `calc(100% - ${drawerWidth}px)`,
+    marginLeft: `${drawerWidth}px`,
+    transition: theme.transitions.create(["margin", "width"], {
+      easing: theme.transitions.easing.easeOut,
+      duration: theme.transitions.duration.enteringScreen,
     }),
   }),
-);
+}));
 
-const DrawerHeader = styled('div')(({ theme }) => ({
-  display: 'flex',
-  alignItems: 'center',
+const DrawerHeader = styled("div")(({ theme }) => ({
+  display: "flex",
+  alignItems: "center",
   padding: theme.spacing(0, 1),
   ...theme.mixins.toolbar,
-  justifyContent: 'flex-end',
+  justifyContent: "flex-end",
 }));
 
 const menuItems = [
-  { text: 'Dashboard', icon: <HomeIcon />, path: '/' },
-  { text: 'Add Transaction', icon: <AddIcon />, path: '/add-transaction' },
-  { text: 'Bulk Upload', icon: <UploadIcon />, path: '/bulk-upload' },
-  { text: 'Details Summary', icon: <AssessmentIcon />, path: '/summary' },
-  { text: 'Spend Heatmap', icon: <CalendarMonthIcon />, path: '/heatmap' },
-  { text: 'Recurring', icon: <LoopIcon />, path: '/recurring' },
+  { text: "Dashboard", icon: <HomeIcon />, path: "/" },
+  { text: "Add Transaction", icon: <AddIcon />, path: "/add-transaction" },
+  { text: "Bulk Upload", icon: <UploadIcon />, path: "/bulk-upload" },
+  { text: "Details Summary", icon: <AssessmentIcon />, path: "/summary" },
+  { text: "Spend Heatmap", icon: <CalendarMonthIcon />, path: "/heatmap" },
+  { text: "Recurring", icon: <LoopIcon />, path: "/recurring" },
+  { text: "Bill Calendar", icon: <CalendarTodayIcon />, path: "/calendar" },
 ];
 
 export default function Layout({ children, onToggleColorMode, mode }) {
@@ -100,7 +102,7 @@ export default function Layout({ children, onToggleColorMode, mode }) {
   };
 
   return (
-    <Box sx={{ display: 'flex' }}>
+    <Box sx={{ display: "flex" }}>
       <AppBarStyled position="fixed" open={open}>
         <Toolbar>
           <IconButton
@@ -108,16 +110,16 @@ export default function Layout({ children, onToggleColorMode, mode }) {
             aria-label="open drawer"
             onClick={handleDrawerOpen}
             edge="start"
-            sx={{ mr: 2, ...(open && { display: 'none' }) }}
+            sx={{ mr: 2, ...(open && { display: "none" }) }}
           >
             <MenuIcon />
           </IconButton>
           <Typography variant="h6" noWrap component="div" sx={{ flexGrow: 1 }}>
             Finance Tracker
           </Typography>
-          <Box sx={{ display: 'flex', alignItems: 'center' }}>
-            <IconButton 
-              color="inherit" 
+          <Box sx={{ display: "flex", alignItems: "center" }}>
+            <IconButton
+              color="inherit"
               onClick={() => setSettingsOpen(true)}
               aria-label="settings"
               sx={{ mr: 2 }}
@@ -126,7 +128,7 @@ export default function Layout({ children, onToggleColorMode, mode }) {
             </IconButton>
             <LightModeIcon sx={{ mr: 1 }} />
             <Switch
-              checked={mode === 'dark'}
+              checked={mode === "dark"}
               onChange={onToggleColorMode}
               color="default"
             />
@@ -138,9 +140,9 @@ export default function Layout({ children, onToggleColorMode, mode }) {
         sx={{
           width: drawerWidth,
           flexShrink: 0,
-          '& .MuiDrawer-paper': {
+          "& .MuiDrawer-paper": {
             width: drawerWidth,
-            boxSizing: 'border-box',
+            boxSizing: "border-box",
           },
         }}
         variant="persistent"
@@ -155,8 +157,8 @@ export default function Layout({ children, onToggleColorMode, mode }) {
         <Divider />
         <List>
           {menuItems.map((item) => (
-            <ListItem 
-              button 
+            <ListItem
+              button
               key={item.text}
               onClick={() => navigate(item.path)}
               selected={location.pathname === item.path}
@@ -171,10 +173,10 @@ export default function Layout({ children, onToggleColorMode, mode }) {
         <DrawerHeader />
         {children}
       </Main>
-      <SettingsDialog 
-        open={settingsOpen} 
-        onClose={() => setSettingsOpen(false)} 
+      <SettingsDialog
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
       />
     </Box>
   );
-} 
+}

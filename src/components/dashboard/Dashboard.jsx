@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from "react";
 import {
   Grid,
   Card,
@@ -7,14 +7,22 @@ import {
   Box,
   CircularProgress,
   IconButton,
-} from '@mui/material';
+  Paper,
+  TextField,
+  Button,
+  ToggleButton,
+  ToggleButtonGroup,
+  LinearProgress,
+  Chip,
+} from "@mui/material";
+import { useTheme } from "@mui/material/styles";
 import {
   TrendingUp,
   TrendingDown,
-  AccountBalance,
   ArrowBackIos,
   ArrowForwardIos,
-} from '@mui/icons-material';
+  FlashOn,
+} from "@mui/icons-material";
 import {
   ComposedChart,
   Line,
@@ -24,164 +32,418 @@ import {
   Tooltip,
   ResponsiveContainer,
   ReferenceLine,
-  Legend,
-  Area
-} from 'recharts';
-import { getMonthlySpendComparison, getSummaryMonths, getCumulativeSpend, getMaxSpendValue } from '../../services/finance-service';
+  Area,
+} from "recharts";
+import {
+  getMonthlySpendComparison,
+  getSummaryMonths,
+  getCumulativeSpend,
+  getMaxSpendValue,
+} from "../../services/finance-service";
 
-const SummaryCard = ({ title, value, icon, trend, color, loading, subtitle }) => (
-  <Card>
-    <CardContent>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Box>
-          <Typography color="textSecondary" gutterBottom>
-            {title}
-          </Typography>
-          {loading ? (
+const MONTH_NAMES = [
+  "January","February","March","April","May","June",
+  "July","August","September","October","November","December",
+];
+
+const fmt = (n) =>
+  "$" + Math.round(n || 0).toLocaleString("en-US");
+
+// ─── Budget Card ─────────────────────────────────────────────────────────────
+function BudgetCard({ currentSpend, targetSpend, loading }) {
+  const pct = Math.min(100, Math.round((currentSpend / targetSpend) * 100));
+  const remaining = targetSpend - currentSpend;
+  const color = pct <= 75 ? "success" : pct <= 90 ? "warning" : "error";
+
+  return (
+    <Card variant="outlined" sx={{ height: "100%" }}>
+      <CardContent>
+        <Typography variant="overline" color="text.secondary">
+          This Month
+        </Typography>
+        {loading ? (
+          <Box sx={{ mt: 2 }}>
             <CircularProgress size={24} />
-          ) : (
-            <>
-              <Typography variant="h4" component="div">
-                ${parseFloat(value).toLocaleString()}
+          </Box>
+        ) : (
+          <>
+            <Typography variant="h4" fontWeight={700} sx={{ my: 0.5 }}>
+              {fmt(currentSpend)}
+            </Typography>
+            <LinearProgress
+              variant="determinate"
+              value={pct}
+              color={color}
+              sx={{ height: 6, borderRadius: 3, my: 1 }}
+            />
+            <Box sx={{ display: "flex", justifyContent: "space-between" }}>
+              <Typography variant="body2" color={`${color}.main`} fontWeight={600}>
+                {pct}% of budget
               </Typography>
-              {trend && (
-                <Box sx={{ display: 'flex', alignItems: 'center', mt: 1 }}>
-                  {parseFloat(trend) > 0 ? (
-                    <TrendingUp color="success" />
-                  ) : (
-                    <TrendingDown color="error" />
-                  )}
-                  <Typography
-                    variant="body2"
-                    color={parseFloat(trend) > 0 ? 'success.main' : 'error.main'}
-                    sx={{ ml: 1 }}
-                  >
-                    {Math.abs(parseFloat(trend))}% vs last month
-                  </Typography>
-                </Box>
-              )}
-              {subtitle && (
-                <Typography variant="body2" color="textSecondary" sx={{ mt: 1 }}>
-                  {subtitle}
-                </Typography>
-              )}
-            </>
-          )}
-        </Box>
-        <Box sx={{ color: color }}>
-          {icon}
-        </Box>
-      </Box>
-    </CardContent>
-  </Card>
-);
+              <Typography variant="body2" color="text.secondary">
+                {remaining >= 0
+                  ? `${fmt(remaining)} left`
+                  : `${fmt(Math.abs(remaining))} over`}
+              </Typography>
+            </Box>
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
 
-const SpendingChart = ({ data, targetSpend, selectedMonth, selectedYear, onNavigateMonth, loading }) => {
-  // Format month/year for display
-  const monthNames = [
-    'January', 'February', 'March', 'April', 'May', 'June',
-    'July', 'August', 'September', 'October', 'November', 'December'
-  ];
-  const displayTitle = selectedMonth && selectedYear 
-    ? `${monthNames[selectedMonth - 1]} ${selectedYear} Spending Trend`
-    : 'Monthly Spending Trend';
-  
+// ─── vs Last Month Card ───────────────────────────────────────────────────────
+function VsLastMonthCard({ currentSpend, lastMonthTotal, daysElapsed, daysInMonth, loading }) {
+  const pctThrough =
+    lastMonthTotal > 0
+      ? Math.round((currentSpend / lastMonthTotal) * 100)
+      : null;
+  const delta = currentSpend - lastMonthTotal;
+  const isOver = delta > 0;
+
+  return (
+    <Card variant="outlined" sx={{ height: "100%" }}>
+      <CardContent>
+        <Typography variant="overline" color="text.secondary">
+          vs Last Month
+        </Typography>
+        {loading ? (
+          <Box sx={{ mt: 2 }}>
+            <CircularProgress size={24} />
+          </Box>
+        ) : (
+          <>
+            <Typography variant="h4" fontWeight={700} sx={{ my: 0.5 }}>
+              {fmt(lastMonthTotal)}
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+              last month total
+            </Typography>
+            {pctThrough !== null && (
+              <Typography
+                variant="body2"
+                color={isOver ? "error.main" : "success.main"}
+                fontWeight={600}
+                sx={{ mb: 0.25 }}
+              >
+                {isOver ? "▲" : "▼"} {fmt(Math.abs(delta))} vs last month
+              </Typography>
+            )}
+            <Typography variant="body2" color="text.secondary">
+              this month so far · day {daysElapsed} of {daysInMonth}
+            </Typography>
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─── Top Category Card ────────────────────────────────────────────────────────
+function TopCategoryCard({ categoryValues, totalSpend, loading }) {
+  const top = useMemo(() => {
+    if (!categoryValues || categoryValues.length === 0) return null;
+    return [...categoryValues]
+      .filter((c) => c.value > 0)
+      .sort((a, b) => b.value - a.value)[0];
+  }, [categoryValues]);
+
+  const pct =
+    top && totalSpend > 0 ? Math.round((top.value / totalSpend) * 100) : 0;
+
+  return (
+    <Card variant="outlined" sx={{ height: "100%" }}>
+      <CardContent>
+        <Typography variant="overline" color="text.secondary">
+          Top Category
+        </Typography>
+        {loading ? (
+          <Box sx={{ mt: 2 }}>
+            <CircularProgress size={24} />
+          </Box>
+        ) : top ? (
+          <>
+            <Typography
+              variant="h6"
+              fontWeight={700}
+              sx={{ mt: 0.5, mb: 0.25 }}
+              noWrap
+            >
+              {top.category}
+            </Typography>
+            <Typography variant="h4" fontWeight={700} color="primary.main">
+              {fmt(top.value)}
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+              {pct}% of month spend
+            </Typography>
+          </>
+        ) : (
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+            No data yet
+          </Typography>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─── Insight Strip ────────────────────────────────────────────────────────────
+function InsightStrip({ dailyAvg, daysRemaining, daysInMonth, projected, targetSpend, isCurrentMonth }) {
+  if (!isCurrentMonth) return null;
+
+  const status =
+    projected >= targetSpend
+      ? { label: "Over Budget", color: "error" }
+      : projected >= targetSpend * 0.9
+        ? { label: "At Risk", color: "warning" }
+        : { label: "On Track", color: "success" };
+
+  return (
+    <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", mb: 3 }}>
+      <Chip size="small" label={`${daysRemaining} days remaining`} variant="outlined" />
+      <Chip size="small" label={`Daily avg ${fmt(dailyAvg)}`} variant="outlined" />
+      <Chip size="small" label={status.label} color={status.color} />
+    </Box>
+  );
+}
+
+// ─── Chart Tooltip ────────────────────────────────────────────────────────────
+function ChartTooltip({ active, payload, label }) {
+  if (!active || !payload?.length) return null;
+  return (
+    <Paper elevation={4} sx={{ p: 1.5, minWidth: 140 }}>
+      <Typography variant="caption" color="text.secondary" display="block" gutterBottom>
+        Day {label}
+      </Typography>
+      {payload.map((p) => (
+        <Box
+          key={p.dataKey}
+          sx={{ display: "flex", justifyContent: "space-between", gap: 2 }}
+        >
+          <Typography variant="body2" sx={{ color: p.color }}>
+            {p.dataKey === "actual" ? "Spent" : "Projected"}
+          </Typography>
+          <Typography variant="body2" fontWeight={700}>
+            {fmt(p.value)}
+          </Typography>
+        </Box>
+      ))}
+    </Paper>
+  );
+}
+
+// ─── Spending Chart ───────────────────────────────────────────────────────────
+function SpendingChart({ cumulativeData, targetSpend, selectedMonth, selectedYear, onNavigateMonth, loading }) {
+  const theme = useTheme();
+
+  const now = new Date();
+  const isCurrentMonth =
+    selectedMonth === now.getMonth() + 1 && selectedYear === now.getFullYear();
+  const todayDay = now.getDate();
+  const daysInMonth = new Date(selectedYear, selectedMonth, 0).getDate();
+
+  const canGoNext =
+    !(selectedYear === now.getFullYear() && selectedMonth === now.getMonth() + 1);
+
+  const chartData = useMemo(() => {
+    if (!cumulativeData || cumulativeData.length === 0) return [];
+
+    const dataMap = {};
+    cumulativeData.forEach((d) => { dataMap[d.name] = d.amount; });
+
+    const lastActualDay = isCurrentMonth ? todayDay : daysInMonth;
+    const lastActualAmount = cumulativeData[cumulativeData.length - 1]?.amount || 0;
+    const dailyAvg = lastActualDay > 0 ? lastActualAmount / lastActualDay : 0;
+
+    const result = [];
+    for (let day = 1; day <= daysInMonth; day++) {
+      const point = { day };
+      if (dataMap[day] !== undefined) {
+        point.actual = dataMap[day];
+      }
+      if (isCurrentMonth && day >= lastActualDay) {
+        point.projected = Math.round(
+          lastActualAmount + dailyAvg * (day - lastActualDay),
+        );
+      }
+      result.push(point);
+    }
+    return result;
+  }, [cumulativeData, isCurrentMonth, todayDay, daysInMonth]);
+
+  const maxY = useMemo(() => {
+    const maxActual = Math.max(0, ...(cumulativeData || []).map((d) => d.amount));
+    const lastProjected = chartData[chartData.length - 1]?.projected || 0;
+    const raw = Math.max(targetSpend * 1.08, maxActual, lastProjected);
+    return Math.ceil(raw / 1000) * 1000;
+  }, [cumulativeData, chartData, targetSpend]);
+
   if (loading) {
     return (
-      <Box sx={{ p: 3, textAlign: 'center', height: 400, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <Box
+        sx={{ height: 340, display: "flex", alignItems: "center", justifyContent: "center" }}
+      >
         <CircularProgress />
       </Box>
     );
   }
-  
-  if (!data || data.length === 0) {
+
+  if (!chartData.length) {
     return (
-      <Box sx={{ p: 3, textAlign: 'center' }}>
-        <Typography>No spending data available</Typography>
+      <Box
+        sx={{ height: 340, display: "flex", alignItems: "center", justifyContent: "center" }}
+      >
+        <Typography color="text.secondary">No spending data for this month</Typography>
       </Box>
     );
   }
 
-  const processedData = data.map(point => ({
-    ...point,
-    isOverTarget: point.amount > targetSpend
-  }));
-
   return (
-    <Box sx={{ p: 3, height: 400 }}>
-      <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-        <IconButton 
-          onClick={() => onNavigateMonth('prev')}
-          disabled={loading}
-          sx={{ mr: 2 }}
-        >
-          <ArrowBackIos />
+    <Box>
+      <Box
+        sx={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          mb: 2,
+        }}
+      >
+        <IconButton onClick={() => onNavigateMonth("prev")} size="small">
+          <ArrowBackIos fontSize="small" />
         </IconButton>
-        
-        <Typography variant="h6" sx={{ textAlign: 'center', flexGrow: 1 }}>
-          {displayTitle}
-        </Typography>
-        
-        <IconButton 
-          onClick={() => onNavigateMonth('next')}
-          disabled={loading}
-          sx={{ ml: 2 }}
+        <Box sx={{ textAlign: "center" }}>
+          <Typography variant="h6" fontWeight={600}>
+            {MONTH_NAMES[selectedMonth - 1]} {selectedYear}
+          </Typography>
+          <Typography variant="caption" color="text.secondary">
+            Cumulative spending
+            {isCurrentMonth ? " · dashed = projected" : ""}
+          </Typography>
+        </Box>
+        <IconButton
+          onClick={() => onNavigateMonth("next")}
+          size="small"
+          disabled={!canGoNext}
         >
-          <ArrowForwardIos />
+          <ArrowForwardIos fontSize="small" />
         </IconButton>
       </Box>
-      <ResponsiveContainer width="100%" height="100%">
-        <ComposedChart data={processedData}>
-          <CartesianGrid strokeDasharray="3 3" />
-          <XAxis 
-            dataKey="name" 
-            label={{ value: 'Day of Month', position: 'insideBottom', offset: -5 }} 
-          />
-          <YAxis 
-            label={{ value: 'Amount ($)', angle: -90, position: 'insideLeft' }} 
-            tickFormatter={(value) => `$${value}`}
-            domain={[0, Math.max(targetSpend, ...data.map(d => d.amount))]}
-          />
-          <Tooltip 
-            formatter={(value) => [`$${value}`, 'Cumulative Spend']}
-            labelFormatter={(label) => `Day ${label}`}
-          />
-          <Area
-            type="monotone"
-            dataKey="amount"
-            stroke="none"
-            fill={processedData.some(d => d.isOverTarget) ? "#ffcdd2" : "#bbdefb"}
-            fillOpacity={0.8}
-          />
-          <Line 
-            type="monotone" 
-            dataKey="amount" 
-            stroke="#8884d8" 
-            strokeWidth={2}
-            dot={{ r: 4 }}
-            activeDot={{ r: 6 }}
-            name="Cumulative Spend"
-          />
-          <ReferenceLine
-            y={targetSpend}
-            stroke="red"
-            strokeWidth={2}
-            strokeDasharray="3 3"
-            label={{
-              value: `Target: $${targetSpend}`,
-              position: 'right',
-              fill: 'red',
-              fontSize: 14,
-              fontWeight: 'bold'
-            }}
-          />
-          <Legend />
-        </ComposedChart>
-      </ResponsiveContainer>
+
+      <Box sx={{ height: 320 }}>
+        <ResponsiveContainer width="100%" height="100%">
+          <ComposedChart
+            data={chartData}
+            margin={{ top: 10, right: 70, left: 10, bottom: 0 }}
+          >
+            <defs>
+              <linearGradient id="actualGradient" x1="0" y1="0" x2="0" y2="1">
+                <stop
+                  offset="5%"
+                  stopColor={theme.palette.primary.main}
+                  stopOpacity={0.25}
+                />
+                <stop
+                  offset="95%"
+                  stopColor={theme.palette.primary.main}
+                  stopOpacity={0.02}
+                />
+              </linearGradient>
+            </defs>
+
+            <CartesianGrid
+              horizontal
+              vertical={false}
+              stroke={theme.palette.divider}
+              strokeDasharray="0"
+            />
+            <XAxis
+              dataKey="day"
+              tick={{ fontSize: 11, fill: theme.palette.text.secondary }}
+              tickLine={false}
+              axisLine={false}
+              interval={6}
+            />
+            <YAxis
+              tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`}
+              tick={{ fontSize: 11, fill: theme.palette.text.secondary }}
+              tickLine={false}
+              axisLine={false}
+              domain={[0, maxY]}
+            />
+            <Tooltip content={ChartTooltip} />
+
+            {/* Gradient fill under actual line */}
+            <Area
+              type="monotone"
+              dataKey="actual"
+              fill="url(#actualGradient)"
+              stroke="none"
+              connectNulls={false}
+            />
+
+            {/* Actual spend line */}
+            <Line
+              type="monotone"
+              dataKey="actual"
+              stroke={theme.palette.primary.main}
+              strokeWidth={2.5}
+              dot={false}
+              activeDot={{ r: 5, strokeWidth: 0 }}
+              connectNulls={false}
+            />
+
+            {/* Projected line */}
+            {isCurrentMonth && (
+              <Line
+                type="monotone"
+                dataKey="projected"
+                stroke={theme.palette.warning.main}
+                strokeWidth={2}
+                strokeDasharray="8 5"
+                dot={false}
+                connectNulls={false}
+              />
+            )}
+
+            {/* Budget reference */}
+            <ReferenceLine
+              y={targetSpend}
+              stroke={theme.palette.error.main}
+              strokeDasharray="6 3"
+              strokeWidth={1.5}
+              label={{
+                value: `Budget ${fmt(targetSpend)}`,
+                position: "insideTopRight",
+                fontSize: 11,
+                fill: theme.palette.error.main,
+              }}
+            />
+
+            {/* Today marker */}
+            {isCurrentMonth && (
+              <ReferenceLine
+                x={todayDay}
+                stroke={theme.palette.text.disabled}
+                strokeDasharray="4 3"
+                strokeWidth={1}
+                label={{
+                  value: "Today",
+                  position: "insideTopLeft",
+                  fontSize: 10,
+                  fill: theme.palette.text.secondary,
+                }}
+              />
+            )}
+          </ComposedChart>
+        </ResponsiveContainer>
+      </Box>
     </Box>
   );
-};
+}
 
+// ─── Dashboard ────────────────────────────────────────────────────────────────
 export default function Dashboard() {
   const [monthlyData, setMonthlyData] = useState(null);
   const [summaryData, setSummaryData] = useState(null);
@@ -190,60 +452,101 @@ export default function Dashboard() {
   const [chartLoading, setChartLoading] = useState(false);
   const [error, setError] = useState(null);
   const [targetSpend, setTargetSpend] = useState(12000);
-  
-  // Month navigation state
-  const currentDate = new Date();
-  const [selectedMonth, setSelectedMonth] = useState(currentDate.getMonth() + 1); // 1-12
-  const [selectedYear, setSelectedYear] = useState(currentDate.getFullYear());
 
-  // Function to fetch cumulative data for specific month/year
+  const [quickAdd, setQuickAdd] = useState({
+    transactionType: "EXPENSE",
+    amount: "",
+    merchant: "",
+    date: new Date().toISOString().split("T")[0],
+  });
+  const [quickAddStatus, setQuickAddStatus] = useState(null);
+
+  const handleQuickAddTypeChange = (_, newType) => {
+    if (newType === null) return;
+    setQuickAdd((prev) => ({ ...prev, transactionType: newType }));
+  };
+
+  const handleQuickAddChange = (field) => (e) => {
+    setQuickAdd((prev) => ({ ...prev, [field]: e.target.value }));
+  };
+
+  const handleQuickAddSubmit = async () => {
+    if (!quickAdd.amount || !quickAdd.merchant) return;
+    try {
+      const payload = {
+        transactionDate: new Date(quickAdd.date + "T12:00:00").getTime(),
+        amount: parseFloat(quickAdd.amount),
+        businessName: quickAdd.merchant,
+        category: "Miscellaneous",
+        transactionType: quickAdd.transactionType,
+        comment: "",
+        essential: false,
+        duplicateReviewed: false,
+      };
+      const response = await fetch("/api/finance/submit-transaction", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!response.ok) throw new Error("Request failed");
+      setQuickAdd((prev) => ({ ...prev, amount: "", merchant: "" }));
+      setQuickAddStatus({ type: "success", message: "Transaction added!" });
+      setTimeout(() => setQuickAddStatus(null), 2000);
+    } catch (err) {
+      console.error("Quick add error:", err);
+      setQuickAddStatus({ type: "error", message: "Failed to add transaction." });
+      setTimeout(() => setQuickAddStatus(null), 3000);
+    }
+  };
+
+  const now = new Date();
+  const [selectedMonth, setSelectedMonth] = useState(now.getMonth() + 1);
+  const [selectedYear, setSelectedYear] = useState(now.getFullYear());
+
+  const isCurrentMonth =
+    selectedMonth === now.getMonth() + 1 && selectedYear === now.getFullYear();
+  const daysInMonth = new Date(selectedYear, selectedMonth, 0).getDate();
+  const daysElapsed = isCurrentMonth ? now.getDate() : daysInMonth;
+  const daysRemaining = isCurrentMonth ? daysInMonth - now.getDate() : 0;
+  const currentSpend = parseFloat(monthlyData?.currentMonthSpend || 0);
+  const dailyAvg = daysElapsed > 0 ? currentSpend / daysElapsed : 0;
+  const projected = Math.round(dailyAvg * daysInMonth);
+
+  // After server sort fix: index 0 = last month, last index = current month
+  const currentMonthSummary = summaryData?.[summaryData.length - 1];
+  const lastMonthTotal = summaryData?.[0]?.totalMonthlySpend || 0;
+
   const fetchCumulativeData = async (month, year) => {
     try {
       setChartLoading(true);
       const cumulativeSpend = await getCumulativeSpend(month, year);
-      
-      // Transform cumulative data for the chart
       const chartData = cumulativeSpend.cumulativeValues.map((value, index) => ({
         name: index + 1,
-        amount: parseFloat(value)
+        amount: parseFloat(value),
       }));
       setCumulativeData(chartData);
     } catch (err) {
-      console.error('Error fetching cumulative data:', err);
-      setError(err.message);
+      console.error("Error fetching cumulative data:", err);
     } finally {
       setChartLoading(false);
     }
   };
 
-  // Navigation function
   const handleNavigateMonth = (direction) => {
     let newMonth = selectedMonth;
     let newYear = selectedYear;
-    
-    if (direction === 'prev') {
+    if (direction === "prev") {
       newMonth -= 1;
-      if (newMonth < 1) {
-        newMonth = 12;
-        newYear -= 1;
-      }
-    } else if (direction === 'next') {
+      if (newMonth < 1) { newMonth = 12; newYear -= 1; }
+    } else {
       newMonth += 1;
-      if (newMonth > 12) {
-        newMonth = 1;
-        newYear += 1;
-      }
+      if (newMonth > 12) { newMonth = 1; newYear += 1; }
     }
-    
-    // Don't navigate to future months beyond current
-    const currentDate = new Date();
-    const currentMonth = currentDate.getMonth() + 1;
-    const currentYear = currentDate.getFullYear();
-    
-    if (newYear > currentYear || (newYear === currentYear && newMonth > currentMonth)) {
-      return; // Don't navigate to future
-    }
-    
+    const n = new Date();
+    if (
+      newYear > n.getFullYear() ||
+      (newYear === n.getFullYear() && newMonth > n.getMonth() + 1)
+    ) return;
     setSelectedMonth(newMonth);
     setSelectedYear(newYear);
   };
@@ -254,66 +557,40 @@ export default function Dashboard() {
         const [monthlyComparison, summaryMonths, maxSpend] = await Promise.all([
           getMonthlySpendComparison(),
           getSummaryMonths(2),
-          getMaxSpendValue()
+          getMaxSpendValue(),
         ]);
         setMonthlyData(monthlyComparison);
         setSummaryData(summaryMonths);
         setTargetSpend(maxSpend);
-        
       } catch (err) {
-        console.error('Error fetching data:', err);
+        console.error("Error fetching data:", err);
         setError(err.message);
       } finally {
         setLoading(false);
       }
     };
-
     fetchData();
   }, []);
 
-  // Fetch cumulative data when month/year changes
   useEffect(() => {
-    if (!loading) { // Only fetch after initial load
-      fetchCumulativeData(selectedMonth, selectedYear);
-    }
+    if (!loading) fetchCumulativeData(selectedMonth, selectedYear);
   }, [selectedMonth, selectedYear, loading]);
 
-  // Fetch initial cumulative data
   useEffect(() => {
-    if (!loading && !cumulativeData) {
-      fetchCumulativeData(selectedMonth, selectedYear);
-    }
+    if (!loading && !cumulativeData) fetchCumulativeData(selectedMonth, selectedYear);
   }, [loading]);
 
-  // Poll for target spend changes
   useEffect(() => {
-    const pollTargetSpend = async () => {
+    const interval = setInterval(async () => {
       try {
         const maxSpend = await getMaxSpendValue();
-        if (maxSpend !== targetSpend) {
-          setTargetSpend(maxSpend);
-        }
+        setTargetSpend(maxSpend);
       } catch (err) {
-        console.error('Error polling target spend:', err);
+        console.error("Error polling target spend:", err);
       }
-    };
-
-    const interval = setInterval(pollTargetSpend, 5000); // Poll every 5 seconds
+    }, 5000);
     return () => clearInterval(interval);
-  }, [targetSpend]);
-
-  // TODO: Replace with actual data from API
-  const mockData = {
-    totalBalance: 15000,
-    spendingTrend: [
-      { name: 'Jan', amount: 2000 },
-      { name: 'Feb', amount: 2200 },
-      { name: 'Mar', amount: 2500 },
-    ],
-  };
-
-  // Get the previous month's total spend from summary data
-  const previousMonthTotal = summaryData?.[1]?.totalMonthlySpend || 0;
+  }, []);
 
   if (error) {
     return (
@@ -325,46 +602,152 @@ export default function Dashboard() {
 
   return (
     <Box>
-      <Grid container spacing={3}>
+      {/* Quick Add */}
+      <Paper sx={{ p: 2, mb: 3 }}>
+        <Typography
+          variant="subtitle2"
+          sx={{ mb: 1.5, display: "flex", alignItems: "center", gap: 0.5 }}
+        >
+          <FlashOn fontSize="small" />
+          Quick Add
+        </Typography>
+        <Box sx={{ display: "flex", gap: 2, alignItems: "center", flexWrap: "wrap" }}>
+          <ToggleButtonGroup
+            value={quickAdd.transactionType}
+            exclusive
+            onChange={handleQuickAddTypeChange}
+            size="small"
+          >
+            <ToggleButton
+              value="EXPENSE"
+              sx={{
+                "&.Mui-selected": {
+                  color: "error.main",
+                  borderColor: "error.main",
+                  backgroundColor: "error.light",
+                  opacity: 0.85,
+                  "&:hover": { backgroundColor: "error.light" },
+                },
+              }}
+            >
+              <TrendingDown fontSize="small" sx={{ mr: 0.5 }} />
+              Expense
+            </ToggleButton>
+            <ToggleButton
+              value="INCOME"
+              sx={{
+                "&.Mui-selected": {
+                  color: "success.main",
+                  borderColor: "success.main",
+                  backgroundColor: "success.light",
+                  opacity: 0.85,
+                  "&:hover": { backgroundColor: "success.light" },
+                },
+              }}
+            >
+              <TrendingUp fontSize="small" sx={{ mr: 0.5 }} />
+              Income
+            </ToggleButton>
+          </ToggleButtonGroup>
+          <TextField
+            type="number"
+            size="small"
+            placeholder="Amount"
+            value={quickAdd.amount}
+            onChange={handleQuickAddChange("amount")}
+            InputProps={{
+              startAdornment: (
+                <Typography variant="body2" sx={{ mr: 0.5 }}>
+                  $
+                </Typography>
+              ),
+            }}
+            sx={{ width: 130 }}
+          />
+          <TextField
+            size="small"
+            placeholder="Merchant name"
+            value={quickAdd.merchant}
+            onChange={handleQuickAddChange("merchant")}
+            sx={{ width: 180 }}
+          />
+          <TextField
+            type="date"
+            size="small"
+            value={quickAdd.date}
+            onChange={handleQuickAddChange("date")}
+            sx={{ width: 160 }}
+          />
+          <Button
+            variant="contained"
+            size="small"
+            onClick={handleQuickAddSubmit}
+            disabled={!quickAdd.amount || !quickAdd.merchant}
+          >
+            Add
+          </Button>
+          {quickAddStatus && (
+            <Typography
+              variant="body2"
+              sx={{
+                color:
+                  quickAddStatus.type === "success" ? "success.main" : "error.main",
+              }}
+            >
+              {quickAddStatus.message}
+            </Typography>
+          )}
+        </Box>
+      </Paper>
+
+      {/* Summary cards */}
+      <Grid container spacing={3} sx={{ mb: 3 }}>
         <Grid item xs={12} md={4}>
-          <SummaryCard
-            title="Current Month Spend"
-            value={monthlyData?.currentMonthSpend || '0'}
-            icon={<AccountBalance sx={{ fontSize: 40 }} />}
-            trend={monthlyData?.comparisonToPriorMonth}
-            color="primary.main"
+          <BudgetCard
+            currentSpend={currentSpend}
+            targetSpend={targetSpend}
             loading={loading}
           />
         </Grid>
         <Grid item xs={12} md={4}>
-          <SummaryCard
-            title="Last Month Total"
-            value={previousMonthTotal}
-            icon={<AccountBalance sx={{ fontSize: 40 }} />}
-            color="secondary.main"
+          <VsLastMonthCard
+            currentSpend={currentSpend}
+            lastMonthTotal={lastMonthTotal}
+            daysElapsed={daysElapsed}
+            daysInMonth={daysInMonth}
             loading={loading}
           />
         </Grid>
         <Grid item xs={12} md={4}>
-          <SummaryCard
-            title="Total Balance"
-            value={mockData.totalBalance}
-            icon={<AccountBalance sx={{ fontSize: 40 }} />}
-            color="success.main"
-            loading={false}
-            trend={null}
-            subtitle="(To Be Implemented)"
+          <TopCategoryCard
+            categoryValues={currentMonthSummary?.categoryValues}
+            totalSpend={currentSpend}
+            loading={loading}
           />
         </Grid>
       </Grid>
-      <SpendingChart
-        data={cumulativeData} 
+
+      {/* Pace / status chips */}
+      <InsightStrip
+        dailyAvg={dailyAvg}
+        daysRemaining={daysRemaining}
+        daysInMonth={daysInMonth}
+        projected={projected}
         targetSpend={targetSpend}
-        selectedMonth={selectedMonth}
-        selectedYear={selectedYear}
-        onNavigateMonth={handleNavigateMonth}
-        loading={chartLoading}
+        isCurrentMonth={isCurrentMonth}
       />
+
+      {/* Spending chart */}
+      <Paper variant="outlined" sx={{ p: 3 }}>
+        <SpendingChart
+          cumulativeData={cumulativeData}
+          targetSpend={targetSpend}
+          selectedMonth={selectedMonth}
+          selectedYear={selectedYear}
+          onNavigateMonth={handleNavigateMonth}
+          loading={chartLoading}
+        />
+      </Paper>
     </Box>
   );
-} 
+}

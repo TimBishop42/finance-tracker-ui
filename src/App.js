@@ -1,18 +1,19 @@
-import React, { useState, useMemo } from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import { ThemeProvider, createTheme } from '@mui/material/styles';
-import CssBaseline from '@mui/material/CssBaseline';
-import Layout from './components/layout/Layout';
-import Dashboard from './components/dashboard/Dashboard';
-import TransactionForm from './components/transactions/TransactionForm';
-import TransactionUploader from './components/transactions/TransactionUploader';
-import AggregateData from './components/dashboard/AggregateData';
-import SpendingHeatmap from './components/dashboard/SpendingHeatmap';
-import RecurringTransactions from './components/dashboard/RecurringTransactions';
-import { CategoriesProvider } from './context/CategoriesContext';
+import React, { useState, useMemo } from "react";
+import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import { ThemeProvider, createTheme } from "@mui/material/styles";
+import CssBaseline from "@mui/material/CssBaseline";
+import Layout from "./components/layout/Layout";
+import Dashboard from "./components/dashboard/Dashboard";
+import TransactionForm from "./components/transactions/TransactionForm";
+import TransactionUploader from "./components/transactions/TransactionUploader";
+import AggregateData from "./components/dashboard/AggregateData";
+import SpendingHeatmap from "./components/dashboard/SpendingHeatmap";
+import RecurringTransactions from "./components/dashboard/RecurringTransactions";
+import BillCalendar from "./components/dashboard/BillCalendar";
+import { CategoriesProvider } from "./context/CategoriesContext";
 
 function App() {
-  const [mode, setMode] = useState('light');
+  const [mode, setMode] = useState("light");
 
   const theme = useMemo(
     () =>
@@ -20,10 +21,10 @@ function App() {
         palette: {
           mode,
           primary: {
-            main: '#1976d2',
+            main: "#1976d2",
           },
           secondary: {
-            main: '#dc004e',
+            main: "#dc004e",
           },
         },
       }),
@@ -31,7 +32,7 @@ function App() {
   );
 
   const toggleColorMode = () => {
-    setMode((prevMode) => (prevMode === 'light' ? 'dark' : 'light'));
+    setMode((prevMode) => (prevMode === "light" ? "dark" : "light"));
   };
 
   return (
@@ -47,6 +48,7 @@ function App() {
               <Route path="/summary" element={<AggregateData />} />
               <Route path="/heatmap" element={<SpendingHeatmap />} />
               <Route path="/recurring" element={<RecurringTransactions />} />
+              <Route path="/calendar" element={<BillCalendar />} />
               <Route path="*" element={<Dashboard />} />
             </Routes>
           </Layout>

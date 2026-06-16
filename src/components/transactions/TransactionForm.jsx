@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from "react";
 import {
   Box,
   Button,
@@ -12,22 +12,26 @@ import {
   Paper,
   Typography,
   Alert,
-} from '@mui/material';
-import { DatePicker } from '@mui/x-date-pickers/DatePicker';
-import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
-import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
-import RestClient from '../../rest/CategoryClient';
-import DuplicateReviewModal from './DuplicateReviewModal';
-import TransactionList from './TransactionList';
+  ToggleButton,
+  ToggleButtonGroup,
+} from "@mui/material";
+import { TrendingUp, TrendingDown } from "@mui/icons-material";
+import { DatePicker } from "@mui/x-date-pickers/DatePicker";
+import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
+import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
+import RestClient from "../../rest/CategoryClient";
+import DuplicateReviewModal from "./DuplicateReviewModal";
+import TransactionList from "./TransactionList";
 
 export default function TransactionForm({ onTransactionAdded }) {
   const [formData, setFormData] = useState({
     transactionDate: new Date(),
-    amount: '',
-    businessName: '',
-    category: '',
-    comment: '',
+    amount: "",
+    businessName: "",
+    category: "",
+    comment: "",
     essential: false,
+    transactionType: "EXPENSE",
   });
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(false);
@@ -35,7 +39,7 @@ export default function TransactionForm({ onTransactionAdded }) {
   const [duplicateModal, setDuplicateModal] = useState({
     open: false,
     duplicates: [],
-    newTransaction: null
+    newTransaction: null,
   });
 
   useEffect(() => {
@@ -44,26 +48,38 @@ export default function TransactionForm({ onTransactionAdded }) {
 
   const fetchCategories = async () => {
     try {
-      const response = await RestClient.get('/finance/get-categories');
-      setCategories(response.data.map(cat => cat.categoryName));
+      const response = await RestClient.get("/finance/get-categories");
+      setCategories(response.data.map((cat) => cat.categoryName));
     } catch (err) {
-      console.error('Error fetching categories:', err);
-      setError('Failed to load categories');
+      console.error("Error fetching categories:", err);
+      setError("Failed to load categories");
     }
   };
 
   const handleChange = (e) => {
     const { name, value, checked } = e.target;
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
-      [name]: name === 'essential' ? checked : value
+      [name]: name === "essential" ? checked : value,
     }));
   };
 
   const handleDateChange = (date) => {
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
-      transactionDate: date
+      transactionDate: date,
+    }));
+  };
+
+  const handleTypeChange = (event, newType) => {
+    if (newType === null) return; // prevent deselecting both
+    setFormData((prev) => ({
+      ...prev,
+      transactionType: newType,
+      category:
+        newType === "INCOME" && !categories.includes("Income")
+          ? "Income"
+          : prev.category,
     }));
   };
 
@@ -75,17 +91,21 @@ export default function TransactionForm({ onTransactionAdded }) {
     const payload = {
       ...formData,
       transactionDate: formData.transactionDate.getTime(),
-      transactionBusiness: formData.businessName || '',
-      duplicateReviewed: false
+      transactionBusiness: formData.businessName || "",
+      transactionType: formData.transactionType,
+      duplicateReviewed: false,
     };
 
     try {
-      const response = await RestClient.post('/finance/submit-transaction', payload);
+      const response = await RestClient.post(
+        "/finance/submit-transaction",
+        payload,
+      );
 
       if (response.data.hasDuplicates) {
         setDuplicateModal({
           open: true,
-          duplicates: response.data.duplicates
+          duplicates: response.data.duplicates,
         });
         return;
       }
@@ -93,51 +113,56 @@ export default function TransactionForm({ onTransactionAdded }) {
       setSuccess(true);
       setFormData({
         transactionDate: new Date(),
-        amount: '',
-        businessName: '',
-        category: '',
-        comment: '',
+        amount: "",
+        businessName: "",
+        category: "",
+        comment: "",
         essential: false,
+        transactionType: "EXPENSE",
       });
       if (onTransactionAdded) {
         onTransactionAdded();
       }
     } catch (err) {
-      console.error('Error saving transaction:', err);
-      setError('Failed to save transaction. Please try again.');
+      console.error("Error saving transaction:", err);
+      setError("Failed to save transaction. Please try again.");
     }
   };
 
   const handleDuplicateConfirm = async (transactionsToSave) => {
-    setDuplicateModal(prev => ({ ...prev, open: false }));
+    setDuplicateModal((prev) => ({ ...prev, open: false }));
     try {
       const transaction = transactionsToSave[0];
       const payload = {
         ...transaction,
         transactionDate: transaction.transactionDateTime,
-        transactionBusiness: transaction.businessName || '',
-        duplicateReviewed: true
+        transactionBusiness: transaction.businessName || "",
+        duplicateReviewed: true,
       };
 
-      const response = await RestClient.post('/finance/submit-transaction', payload);
+      const response = await RestClient.post(
+        "/finance/submit-transaction",
+        payload,
+      );
 
       if (response.data) {
         setSuccess(true);
         setFormData({
           transactionDate: new Date(),
-          amount: '',
-          businessName: '',
-          category: '',
-          comment: '',
+          amount: "",
+          businessName: "",
+          category: "",
+          comment: "",
           essential: false,
+          transactionType: "EXPENSE",
         });
         if (onTransactionAdded) {
           onTransactionAdded();
         }
       }
     } catch (err) {
-      console.error('Error saving transaction:', err);
-      setError('Failed to save transaction. Please try again.');
+      console.error("Error saving transaction:", err);
+      setError("Failed to save transaction. Please try again.");
     }
   };
 
@@ -149,12 +174,56 @@ export default function TransactionForm({ onTransactionAdded }) {
         </Typography>
 
         <Box component="form" onSubmit={handleSubmit} sx={{ mt: 2 }}>
+          <Box sx={{ mb: 2 }}>
+            <ToggleButtonGroup
+              value={formData.transactionType}
+              exclusive
+              onChange={handleTypeChange}
+              aria-label="transaction type"
+            >
+              <ToggleButton
+                value="EXPENSE"
+                aria-label="expense"
+                sx={{
+                  "&.Mui-selected": {
+                    color: "error.main",
+                    borderColor: "error.main",
+                    backgroundColor: "error.light",
+                    opacity: 0.85,
+                    "&:hover": { backgroundColor: "error.light" },
+                  },
+                }}
+              >
+                <TrendingDown sx={{ mr: 0.5 }} />
+                Expense
+              </ToggleButton>
+              <ToggleButton
+                value="INCOME"
+                aria-label="income"
+                sx={{
+                  "&.Mui-selected": {
+                    color: "success.main",
+                    borderColor: "success.main",
+                    backgroundColor: "success.light",
+                    opacity: 0.85,
+                    "&:hover": { backgroundColor: "success.light" },
+                  },
+                }}
+              >
+                <TrendingUp sx={{ mr: 0.5 }} />
+                Income
+              </ToggleButton>
+            </ToggleButtonGroup>
+          </Box>
+
           <LocalizationProvider dateAdapter={AdapterDateFns}>
             <DatePicker
               label="Transaction Date"
               value={formData.transactionDate}
               onChange={handleDateChange}
-              renderInput={(params) => <TextField {...params} fullWidth sx={{ mb: 2 }} />}
+              renderInput={(params) => (
+                <TextField {...params} fullWidth sx={{ mb: 2 }} />
+              )}
             />
           </LocalizationProvider>
 
@@ -188,7 +257,13 @@ export default function TransactionForm({ onTransactionAdded }) {
               label="Category"
               required
             >
-              {categories.map(category => (
+              {formData.transactionType === "INCOME" &&
+                !categories.includes("Income") && (
+                  <MenuItem key="Income" value="Income">
+                    Income
+                  </MenuItem>
+                )}
+              {categories.map((category) => (
                 <MenuItem key={category} value={category}>
                   {category}
                 </MenuItem>
@@ -231,19 +306,16 @@ export default function TransactionForm({ onTransactionAdded }) {
             </Alert>
           )}
 
-          <Button
-            type="submit"
-            variant="contained"
-            color="primary"
-            fullWidth
-          >
+          <Button type="submit" variant="contained" color="primary" fullWidth>
             Add Transaction
           </Button>
         </Box>
 
         <DuplicateReviewModal
           open={duplicateModal.open}
-          onClose={() => setDuplicateModal(prev => ({ ...prev, open: false }))}
+          onClose={() =>
+            setDuplicateModal((prev) => ({ ...prev, open: false }))
+          }
           duplicates={duplicateModal.duplicates}
           newTransaction={duplicateModal.newTransaction}
           onConfirm={handleDuplicateConfirm}

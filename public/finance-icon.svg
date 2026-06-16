@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#43a047"/>
+      <stop offset="100%" style="stop-color:#1b5e20"/>
+    </linearGradient>
+  </defs>
+  <circle cx="32" cy="32" r="31" fill="url(#bg)"/>
+  <!-- Vertical bar of the dollar sign -->
+  <rect x="30" y="8" width="4" height="48" rx="2" fill="white"/>
+  <!-- Dollar sign curves (S shape) -->
+  <!-- Upper arc -->
+  <path d="M 20 20 Q 20 13 32 13 Q 44 13 44 22 Q 44 30 32 30"
+        stroke="white" stroke-width="4" fill="none" stroke-linecap="round"/>
+  <!-- Lower arc -->
+  <path d="M 44 34 Q 44 51 32 51 Q 20 51 20 42 Q 20 34 32 34"
+        stroke="white" stroke-width="4" fill="none" stroke-linecap="round"/>
+</svg>
