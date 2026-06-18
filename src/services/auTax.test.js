@@ -107,4 +107,16 @@ describe("auTax FY2025-26", () => {
     expect(r.taxableIncome).toBeCloseTo(90000, 2);
     expect(r.totalSuper).toBeCloseTo(12000 + 10000, 2);
   });
+
+  test("net super deducts 15% contributions tax", () => {
+    const r = calcTakeHome({
+      incomeAmount: 100000,
+      includesSuper: false,
+      sgRate: 12,
+      hasHospitalCover: true,
+    });
+    expect(r.totalSuper).toBeCloseTo(12000, 2);
+    expect(r.superContributionsTax).toBeCloseTo(1800, 2);
+    expect(r.netSuper).toBeCloseTo(10200, 2); // 12000 × 0.85
+  });
 });

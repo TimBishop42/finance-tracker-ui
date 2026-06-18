@@ -191,9 +191,6 @@ export default function SuperTracker() {
   const balanceAtRet = useReal
     ? summary.balanceAtRetirementReal
     : summary.balanceAtRetirementNominal;
-  const monthlyIncome = useReal
-    ? summary.monthlyIncomeReal
-    : summary.monthlyIncomeNominal;
 
   return (
     <Box sx={{ p: { xs: 1, md: 2 } }}>
@@ -512,8 +509,8 @@ export default function SuperTracker() {
             <Grid item xs={12} sm={4}>
               <Kpi
                 title="Monthly income in retirement"
-                primary={fmt(monthlyIncome)}
-                secondary={`${fmt(useReal ? summary.firstYearIncomeReal : summary.firstYearIncomeNominal)} / yr (first year)`}
+                primary={`${fmt(summary.monthlyIncomeNominal)} / mo`}
+                secondary={`≈ ${fmt(summary.monthlyIncomeReal)} / mo in today's dollars`}
                 color="secondary.main"
               />
             </Grid>

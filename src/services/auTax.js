@@ -206,7 +206,12 @@ export function calcTakeHome(input, fy = FY_DEFAULT) {
 
   const totalTax = incomeTaxAfterOffset + medicare + mls.amount + help;
   const netAnnual = Math.max(0, cashSalary - sacrifice - totalTax);
+
+  // Concessional contributions (SG + salary sacrifice) are taxed 15% inside the
+  // fund, so the amount that actually lands in super is the gross less that tax.
   const totalSuper = sgSuper + sacrifice;
+  const superContributionsTax = totalSuper * 0.15;
+  const netSuper = totalSuper - superContributionsTax;
 
   return {
     grossAnnual,
@@ -222,6 +227,8 @@ export function calcTakeHome(input, fy = FY_DEFAULT) {
     sgSuper,
     sacrifice,
     totalSuper,
+    superContributionsTax,
+    netSuper,
     concessionalCap: CONCESSIONAL_CAP,
     concessionalExceeded: totalSuper > CONCESSIONAL_CAP,
     isFamily,

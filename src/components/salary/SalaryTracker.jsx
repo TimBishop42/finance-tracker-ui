@@ -308,7 +308,18 @@ function TakeHomeTab({ history }) {
       ? [{ label: "HELP/HECS repayment", value: -result.help }]
       : []),
     { label: "Take-home pay", value: result.netAnnual, strong: true },
-    { label: "Superannuation", value: result.totalSuper, muted: true },
+    { label: "Super contribution", value: result.totalSuper, muted: true },
+    {
+      label: "Super contributions tax (15%)",
+      value: -result.superContributionsTax,
+      muted: true,
+    },
+    {
+      label: "Super (lands in fund)",
+      value: result.netSuper,
+      muted: true,
+      strong: true,
+    },
   ];
 
   // Dependant-impact note for MLS.
@@ -533,13 +544,13 @@ function TakeHomeTab({ history }) {
             <Card variant="outlined">
               <CardContent>
                 <Typography variant="overline" color="text.secondary">
-                  Super / yr
+                  Super lands in fund / yr
                 </Typography>
                 <Typography
                   variant="h5"
                   sx={{ color: "primary.main", fontWeight: 600 }}
                 >
-                  {fmt(result.totalSuper)}
+                  {fmt(result.netSuper)}
                 </Typography>
                 <Typography
                   variant="body2"
@@ -549,9 +560,8 @@ function TakeHomeTab({ history }) {
                       : "text.secondary"
                   }
                 >
-                  {result.concessionalExceeded
-                    ? "over $30k concessional cap"
-                    : "within concessional cap"}
+                  {fmt(result.totalSuper)} contributed − 15% tax
+                  {result.concessionalExceeded ? " · over $30k cap" : ""}
                 </Typography>
               </CardContent>
             </Card>
