@@ -29,6 +29,7 @@ import {
   CalendarToday as CalendarTodayIcon,
   Savings as SavingsIcon,
   Payments as PaymentsIcon,
+  AccountBalanceWallet as AccountBalanceWalletIcon,
 } from "@mui/icons-material";
 import { useNavigate, useLocation } from "react-router-dom";
 import SettingsDialog from "../settings/SettingsDialog";
@@ -89,6 +90,7 @@ const menuItems = [
   { text: "Bill Calendar", icon: <CalendarTodayIcon />, path: "/calendar" },
   { text: "Super Forecast", icon: <SavingsIcon />, path: "/super" },
   { text: "Salary & Pay", icon: <PaymentsIcon />, path: "/salary" },
+  { text: "Total Wealth", icon: <AccountBalanceWalletIcon />, path: "/wealth" },
 ];
 
 export default function Layout({ children, onToggleColorMode, mode }) {

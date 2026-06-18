@@ -33,6 +33,7 @@ import {
   DEFAULT_SUPER_INPUTS,
 } from "../../services/superProjection";
 import { useSalaryHistory } from "../../services/useSalaryHistory";
+import { getSuperBalance } from "../../services/finance-service";
 
 const STORAGE_KEY = "superInputs";
 const FALLBACK_SALARY = 90000;
@@ -135,6 +136,18 @@ export default function SuperTracker() {
   const [inputs, setInputs] = useState(loadInputs);
   const { current } = useSalaryHistory();
 
+  // Current super balance is owned by the Total Wealth tab (a persisted SUPER
+  // wealth item). We read it here and use it as the starting balance, unless the
+  // user switches on a what-if override (not saved).
+  const [superBalance, setSuperBalance] = useState(null);
+  useEffect(() => {
+    getSuperBalance()
+      .then((d) =>
+        setSuperBalance(d && d.value != null ? Number(d.value) : null),
+      )
+      .catch(() => setSuperBalance(null));
+  }, []);
+
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(inputs));
@@ -160,11 +173,25 @@ export default function SuperTracker() {
       : Number(overrideVal) || 0
     : fallbackSalary;
 
-  const projectionInput = { ...inputs, annualSalary: effectiveSalary };
+  // Starting balance: prefer the Total Wealth super balance; fall back to the local
+  // input if none is set there. A what-if override uses the local input instead.
+  const overrideBalanceOn = !!inputs.overrideStartingBalance;
+  const localBalance = Number(inputs.startingBalance) || 0;
+  const effectiveStartingBalance = overrideBalanceOn
+    ? localBalance
+    : superBalance != null
+      ? superBalance
+      : localBalance;
+
+  const projectionInput = {
+    ...inputs,
+    annualSalary: effectiveSalary,
+    startingBalance: effectiveStartingBalance,
+  };
   const { series, summary } = useMemo(
     () => projectSuper(projectionInput),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [inputs, effectiveSalary],
+    [inputs, effectiveSalary, effectiveStartingBalance],
   );
 
   const useReal = inputs.displayMode === "real";
@@ -334,16 +361,44 @@ export default function SuperTracker() {
               Accumulation
             </Typography>
             <Grid container spacing={1.5}>
-              <Grid item xs={6}>
-                <NumField
-                  label="Starting balance"
-                  field="startingBalance"
-                  value={inputs.startingBalance}
-                  onChange={setField}
-                  adornment="$"
-                  step={1000}
+              <Grid item xs={12}>
+                {!overrideBalanceOn && superBalance != null && (
+                  <Typography variant="body2">
+                    Starting balance (from Total Wealth):{" "}
+                    <strong>{fmt(superBalance)}</strong>
+                  </Typography>
+                )}
+                {!overrideBalanceOn && superBalance == null && (
+                  <Typography variant="body2" color="text.secondary">
+                    No super balance set in Total Wealth yet — using{" "}
+                    {fmt(localBalance)}. Set it on the &ldquo;Total
+                    Wealth&rdquo; tab, or override below.
+                  </Typography>
+                )}
+              </Grid>
+              <Grid item xs={12}>
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={overrideBalanceOn}
+                      onChange={setBool("overrideStartingBalance")}
+                    />
+                  }
+                  label="Override starting balance (what-if only — not saved)"
                 />
               </Grid>
+              {overrideBalanceOn && (
+                <Grid item xs={6}>
+                  <NumField
+                    label="Starting balance"
+                    field="startingBalance"
+                    value={inputs.startingBalance}
+                    onChange={setField}
+                    adornment="$"
+                    step={1000}
+                  />
+                </Grid>
+              )}
               <Grid item xs={6}>
                 <NumField
                   label="Return (gross)"

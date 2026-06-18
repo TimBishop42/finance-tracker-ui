@@ -172,3 +172,90 @@ export const deleteSalaryEntry = async (id) => {
     throw new Error("Failed to delete salary entry");
   }
 };
+
+// ---------------------------------------------------------------------------
+// Total Wealth / Net Worth tracker (feature §3)
+// ---------------------------------------------------------------------------
+
+const WEALTH = "/api/finance/wealth";
+
+const asJson = async (res, what) => {
+  if (!res.ok) throw new Error(`Failed to ${what}`);
+  const text = await res.text();
+  return text ? JSON.parse(text) : null;
+};
+
+const postJson = (url, body) =>
+  fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+
+const putJson = (url, body) =>
+  fetch(url, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+
+export const getWealthSummary = async (currency = "AUD") =>
+  asJson(
+    await fetch(`${WEALTH}/summary?currency=${encodeURIComponent(currency)}`),
+    "fetch wealth summary",
+  );
+
+export const getWealthItems = async () =>
+  asJson(await fetch(`${WEALTH}/items`), "fetch wealth items");
+
+export const addWealthItem = async (item) =>
+  asJson(await postJson(`${WEALTH}/items`, item), "add wealth item");
+
+export const updateWealthItem = async (id, patch) =>
+  asJson(await putJson(`${WEALTH}/items/${id}`, patch), "update wealth item");
+
+export const deleteWealthItem = async (id) => {
+  const res = await fetch(`${WEALTH}/items/${id}`, { method: "DELETE" });
+  if (!res.ok) throw new Error("Failed to delete wealth item");
+};
+
+export const getSecurities = async () =>
+  asJson(await fetch(`${WEALTH}/securities`), "fetch securities");
+
+export const addSecurity = async (sec) =>
+  asJson(await postJson(`${WEALTH}/securities`, sec), "add security");
+
+export const getTrades = async () =>
+  asJson(await fetch(`${WEALTH}/trades`), "fetch trades");
+
+export const addTrade = async (trade) =>
+  asJson(await postJson(`${WEALTH}/trades`, trade), "add trade");
+
+export const deleteTrade = async (id) => {
+  const res = await fetch(`${WEALTH}/trades/${id}`, { method: "DELETE" });
+  if (!res.ok) throw new Error("Failed to delete trade");
+};
+
+export const setSecurityPrice = async (price) =>
+  asJson(await postJson(`${WEALTH}/prices`, price), "set security price");
+
+export const getLatestFxRate = async () =>
+  asJson(await fetch(`${WEALTH}/fx-rates/latest`), "fetch FX rate");
+
+export const setFxRate = async (rate) =>
+  asJson(await postJson(`${WEALTH}/fx-rates`, rate), "set FX rate");
+
+export const getNetWorthSnapshots = async () =>
+  asJson(await fetch(`${WEALTH}/snapshots`), "fetch snapshots");
+
+export const runNetWorthSnapshot = async () =>
+  asJson(await postJson(`${WEALTH}/snapshots/run`, {}), "run snapshot");
+
+export const getSuperBalance = async () =>
+  asJson(await fetch(`${WEALTH}/super-balance`), "fetch super balance");
+
+export const setSuperBalance = async (payload) =>
+  asJson(
+    await putJson(`${WEALTH}/super-balance`, payload),
+    "set super balance",
+  );
