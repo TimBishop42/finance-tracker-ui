@@ -180,7 +180,17 @@ export const deleteSalaryEntry = async (id) => {
 const WEALTH = "/api/finance/wealth";
 
 const asJson = async (res, what) => {
-  if (!res.ok) throw new Error(`Failed to ${what}`);
+  if (!res.ok) {
+    let detail = "";
+    try {
+      detail = await res.text();
+    } catch (e) {
+      /* ignore */
+    }
+    throw new Error(
+      `${what} failed (HTTP ${res.status})${detail ? `: ${detail.slice(0, 200)}` : ""}`,
+    );
+  }
   const text = await res.text();
   return text ? JSON.parse(text) : null;
 };
@@ -236,8 +246,31 @@ export const deleteTrade = async (id) => {
   if (!res.ok) throw new Error("Failed to delete trade");
 };
 
+export const getSplits = async () =>
+  asJson(await fetch(`${WEALTH}/splits`), "fetch splits");
+
+export const addSplit = async (split) =>
+  asJson(await postJson(`${WEALTH}/splits`, split), "add split");
+
+export const deleteSplit = async (id) => {
+  const res = await fetch(`${WEALTH}/splits/${id}`, { method: "DELETE" });
+  if (!res.ok) throw new Error("Failed to delete split");
+};
+
 export const setSecurityPrice = async (price) =>
   asJson(await postJson(`${WEALTH}/prices`, price), "set security price");
+
+export const updateSecurity = async (id, patch) =>
+  asJson(await putJson(`${WEALTH}/securities/${id}`, patch), "update security");
+
+export const refreshPrices = async () =>
+  asJson(await postJson(`${WEALTH}/prices/refresh`, {}), "refresh prices");
+
+export const quoteSecurity = async (securityId) =>
+  asJson(
+    await fetch(`${WEALTH}/prices/quote?securityId=${securityId}`),
+    "fetch live quote",
+  );
 
 export const getLatestFxRate = async () =>
   asJson(await fetch(`${WEALTH}/fx-rates/latest`), "fetch FX rate");

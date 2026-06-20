@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useRef } from "react";
 import {
   Box,
   Paper,
@@ -24,6 +24,7 @@ import {
   MenuItem,
   Tooltip as MuiTooltip,
   Chip,
+  Snackbar,
 } from "@mui/material";
 import {
   Delete as DeleteIcon,
@@ -32,6 +33,8 @@ import {
   PriceChange as PriceChangeIcon,
   CurrencyExchange as CurrencyExchangeIcon,
   CameraAlt as CameraAltIcon,
+  CallSplit as CallSplitIcon,
+  Sync as SyncIcon,
 } from "@mui/icons-material";
 import {
   PieChart,
@@ -47,6 +50,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { useWealth } from "../../services/useWealth";
+import { quoteSecurity } from "../../services/finance-service";
 
 // --- formatting + constants -------------------------------------------------
 
@@ -67,6 +71,11 @@ const compact = (n) => {
 };
 const todayIso = () => new Date().toISOString().slice(0, 10);
 const pct = (n) => (n == null ? "—" : `${n >= 0 ? "+" : ""}${n.toFixed(1)}%`);
+const fmtRatio = (r) => {
+  const v = Number(r);
+  if (!Number.isFinite(v) || v <= 0) return "—";
+  return v >= 1 ? `${+v.toFixed(4)}:1` : `1:${+(1 / v).toFixed(4)}`;
+};
 
 const CLASS_LABELS = {
   CASH: "Cash & Savings",
@@ -457,24 +466,44 @@ function TradeDialog({
 
 // --- Set price dialog -------------------------------------------------------
 
-function PriceDialog({ open, onClose, securities, onSave }) {
+function PriceDialog({ open, onClose, securities, onSave, presetSecurityId }) {
   const [securityId, setSecurityId] = useState("");
   const [price, setPrice] = useState("");
   const [asOfDate, setAsOfDate] = useState(todayIso());
+  const [err, setErr] = useState("");
+  const [busy, setBusy] = useState(false);
 
   React.useEffect(() => {
     if (open) {
-      setSecurityId(securities.length ? String(securities[0].id) : "");
+      setSecurityId(
+        presetSecurityId != null
+          ? String(presetSecurityId)
+          : securities.length
+            ? String(securities[0].id)
+            : "",
+      );
       setPrice("");
       setAsOfDate(todayIso());
+      setErr("");
     }
-  }, [open, securities]);
+  }, [open, securities, presetSecurityId]);
 
-  const save = () => {
+  const save = async () => {
     const p = Number(price);
-    if (!securityId || !Number.isFinite(p) || p <= 0) return;
-    onSave({ securityId: Number(securityId), price: p, asOfDate });
-    onClose();
+    if (!securityId || !Number.isFinite(p) || p <= 0) {
+      setErr("Pick a security and enter a price greater than 0.");
+      return;
+    }
+    setBusy(true);
+    setErr("");
+    try {
+      await onSave({ securityId: Number(securityId), price: p, asOfDate });
+      onClose();
+    } catch (e) {
+      setErr(String(e?.message || e));
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
@@ -512,15 +541,16 @@ function PriceDialog({ open, onClose, securities, onSave }) {
           type="date"
           InputLabelProps={{ shrink: true }}
         />
+        {err && (
+          <Alert severity="error" sx={{ mt: 1 }}>
+            {err}
+          </Alert>
+        )}
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose}>Cancel</Button>
-        <Button
-          onClick={save}
-          variant="contained"
-          disabled={!securities.length}
-        >
-          Save
+        <Button onClick={save} variant="contained" disabled={busy}>
+          {busy ? "Saving…" : "Save"}
         </Button>
       </DialogActions>
     </Dialog>
@@ -584,19 +614,328 @@ function FxDialog({ open, onClose, onSave, currentRate }) {
   );
 }
 
+// --- Add split dialog -------------------------------------------------------
+
+function SplitDialog({ open, onClose, securities, onSave }) {
+  const [securityId, setSecurityId] = useState("");
+  const [newShares, setNewShares] = useState("");
+  const [oldShares, setOldShares] = useState("1");
+  const [exDate, setExDate] = useState(todayIso());
+
+  React.useEffect(() => {
+    if (open) {
+      setSecurityId(securities.length ? String(securities[0].id) : "");
+      setNewShares("");
+      setOldShares("1");
+      setExDate(todayIso());
+    }
+  }, [open, securities]);
+
+  const n = Number(newShares);
+  const o = Number(oldShares);
+  const ratio = o > 0 ? n / o : NaN;
+
+  const save = () => {
+    if (!securityId || !(n > 0) || !(o > 0) || !exDate) return;
+    onSave({ securityId: Number(securityId), exDate, ratio: n / o });
+    onClose();
+  };
+
+  return (
+    <Dialog open={open} onClose={onClose} maxWidth="xs" fullWidth>
+      <DialogTitle>Add stock split</DialogTitle>
+      <DialogContent>
+        <TextField
+          select
+          label="Security"
+          value={securityId}
+          onChange={(e) => setSecurityId(e.target.value)}
+          fullWidth
+          margin="dense"
+        >
+          {securities.map((s) => (
+            <MenuItem key={s.id} value={String(s.id)}>
+              {s.ticker} ({s.currency})
+            </MenuItem>
+          ))}
+        </TextField>
+        <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+          A 5-for-1 split = 5 new shares for every 1 old. A 1-for-5
+          consolidation = 1 new for every 5 old.
+        </Typography>
+        <Grid container spacing={1}>
+          <Grid item xs={6}>
+            <TextField
+              label="New shares"
+              value={newShares}
+              onChange={(e) => setNewShares(e.target.value)}
+              fullWidth
+              margin="dense"
+              type="number"
+              autoFocus
+            />
+          </Grid>
+          <Grid item xs={6}>
+            <TextField
+              label="for every (old)"
+              value={oldShares}
+              onChange={(e) => setOldShares(e.target.value)}
+              fullWidth
+              margin="dense"
+              type="number"
+            />
+          </Grid>
+        </Grid>
+        <TextField
+          label="Ex-date"
+          value={exDate}
+          onChange={(e) => setExDate(e.target.value)}
+          fullWidth
+          margin="dense"
+          type="date"
+          InputLabelProps={{ shrink: true }}
+        />
+        {Number.isFinite(ratio) && ratio > 0 && (
+          <Typography variant="caption" color="text.secondary">
+            Quantity held on the ex-date is multiplied by ×{+ratio.toFixed(4)};
+            average cost adjusts automatically.
+          </Typography>
+        )}
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onClose}>Cancel</Button>
+        <Button
+          onClick={save}
+          variant="contained"
+          disabled={!securities.length}
+        >
+          Save
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+}
+
+// --- Edit security dialog ---------------------------------------------------
+
+function SecurityDialog({ open, onClose, security, onSave }) {
+  const [name, setName] = useState("");
+  const [currency, setCurrency] = useState("AUD");
+  const [exchange, setExchange] = useState("");
+  const [priceSymbol, setPriceSymbol] = useState("");
+  const [testMsg, setTestMsg] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  React.useEffect(() => {
+    if (open && security) {
+      setName(security.name || "");
+      setCurrency(security.currency || "AUD");
+      setExchange(security.exchange || "");
+      setPriceSymbol(security.priceSymbol || "");
+      setTestMsg("");
+    }
+  }, [open, security]);
+
+  if (!security) return null;
+
+  const patch = () => ({ name, currency, exchange, priceSymbol });
+
+  const test = async () => {
+    setBusy(true);
+    setTestMsg("Testing…");
+    try {
+      await onSave(security.id, patch()); // persist the typed symbol first
+      const q = await quoteSecurity(security.id);
+      setTestMsg(
+        q && q.price != null
+          ? `✓ ${q.price} ${q.currency || ""} (as of ${q.asOf || "?"})`
+          : "✗ No price found — check the ticker / symbol.",
+      );
+    } catch (e) {
+      setTestMsg("✗ Lookup failed.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const save = () => {
+    onSave(security.id, patch());
+    onClose();
+  };
+
+  return (
+    <Dialog open={open} onClose={onClose} maxWidth="xs" fullWidth>
+      <DialogTitle>Edit {security.ticker}</DialogTitle>
+      <DialogContent>
+        <TextField
+          label="Name"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          fullWidth
+          margin="dense"
+        />
+        <Grid container spacing={1}>
+          <Grid item xs={6}>
+            <TextField
+              select
+              label="Currency"
+              value={currency}
+              onChange={(e) => setCurrency(e.target.value)}
+              fullWidth
+              margin="dense"
+            >
+              {CURRENCIES.map((c) => (
+                <MenuItem key={c} value={c}>
+                  {c}
+                </MenuItem>
+              ))}
+            </TextField>
+          </Grid>
+          <Grid item xs={6}>
+            <TextField
+              label="Exchange"
+              value={exchange}
+              onChange={(e) => setExchange(e.target.value)}
+              fullWidth
+              margin="dense"
+            />
+          </Grid>
+        </Grid>
+        <TextField
+          label="Price symbol (override)"
+          value={priceSymbol}
+          onChange={(e) => setPriceSymbol(e.target.value)}
+          fullWidth
+          margin="dense"
+          helperText="Blank = auto (CBA.AX for ASX, AAPL for US)."
+        />
+        <Box sx={{ mt: 1, display: "flex", alignItems: "center", gap: 1 }}>
+          <Button
+            size="small"
+            startIcon={<SyncIcon />}
+            onClick={test}
+            disabled={busy}
+          >
+            Test symbol
+          </Button>
+          {testMsg && <Typography variant="caption">{testMsg}</Typography>}
+        </Box>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onClose}>Cancel</Button>
+        <Button onClick={save} variant="contained">
+          Save
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+}
+
 // --- Main component ---------------------------------------------------------
 
 export default function WealthTracker() {
   const [currency, setCurrency] = useState("AUD");
   const wealth = useWealth(currency);
-  const { summary, securities, trades, loading, error } = wealth;
-  const [dialog, setDialog] = useState(null); // 'asset' | 'liability' | 'trade' | 'price' | 'fx'
+  const { summary, securities, trades, splits, loading, error } = wealth;
+  const [dialog, setDialog] = useState(null); // 'asset' | 'liability' | 'trade' | 'price' | 'fx' | 'split'
   const [editItem, setEditItem] = useState(null);
+  const [editSecurity, setEditSecurity] = useState(null);
+  const [pricePreset, setPricePreset] = useState(null); // securityId to preselect in PriceDialog
+  const [refreshing, setRefreshing] = useState(false);
+  const [snack, setSnack] = useState(null);
+  const [editingPrice, setEditingPrice] = useState(null); // securityId being inline-edited
+  const [priceDraft, setPriceDraft] = useState("");
+  const cancelInlineRef = useRef(false);
+
+  const onRefreshPrices = async () => {
+    setRefreshing(true);
+    try {
+      const results = (await wealth.refreshPrices()) || [];
+      const ok = results.filter((r) => r.ok).length;
+      const failed = results.filter((r) => !r.ok).map((r) => r.symbol);
+      setSnack(
+        failed.length
+          ? `Updated ${ok}/${results.length}. Couldn't price: ${failed.join(", ")}`
+          : `Updated ${ok} ${ok === 1 ? "price" : "prices"} + FX.`,
+      );
+    } catch (e) {
+      setSnack("Price refresh failed.");
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
+  // Per-row inline price edit (no dialog/modal — avoids the focus-trap class of bugs).
+  const startInlinePrice = (h) => {
+    cancelInlineRef.current = false;
+    setPriceDraft(
+      h.lastPrice != null
+        ? String(h.lastPrice)
+        : h.avgCost != null
+          ? String(h.avgCost)
+          : "",
+    );
+    setEditingPrice(h.securityId);
+  };
+  const commitInlinePrice = async (h) => {
+    setEditingPrice(null);
+    if (cancelInlineRef.current) {
+      cancelInlineRef.current = false;
+      return;
+    }
+    const p = Number(priceDraft);
+    if (!Number.isFinite(p) || p <= 0) return;
+    try {
+      await wealth.setPrice({
+        securityId: h.securityId,
+        price: p,
+        asOfDate: todayIso(),
+      });
+    } catch (e) {
+      setSnack("Couldn't set price: " + (e?.message || e));
+    }
+  };
+
+  // Trades + splits merged into one chronological corporate-action history.
+  const blotter = useMemo(() => {
+    const t = (trades || []).map((x) => ({
+      kind: "trade",
+      id: `t${x.id}`,
+      rawId: x.id,
+      date: x.tradeDate,
+      securityId: x.securityId,
+      side: x.side,
+      quantity: x.quantity,
+      price: x.price,
+      fee: x.fee,
+    }));
+    const s = (splits || []).map((x) => ({
+      kind: "split",
+      id: `s${x.id}`,
+      rawId: x.id,
+      date: x.exDate,
+      securityId: x.securityId,
+      ratio: x.ratio,
+    }));
+    return [...t, ...s].sort(
+      (a, b) =>
+        String(a.date).localeCompare(String(b.date)) ||
+        (a.kind === "split" ? 1 : 0) - (b.kind === "split" ? 1 : 0),
+    );
+  }, [trades, splits]);
 
   const tickerById = useMemo(() => {
     const m = {};
     (securities || []).forEach((s) => {
       m[s.id] = s.ticker;
+    });
+    return m;
+  }, [securities]);
+
+  const securityById = useMemo(() => {
+    const m = {};
+    (securities || []).forEach((s) => {
+      m[s.id] = s;
     });
     return m;
   }, [securities]);
@@ -840,10 +1179,28 @@ export default function WealthTracker() {
           <Box sx={{ display: "flex", gap: 1 }}>
             <Button
               size="small"
+              startIcon={<SyncIcon />}
+              onClick={onRefreshPrices}
+              disabled={refreshing}
+            >
+              {refreshing ? "Refreshing…" : "Refresh prices"}
+            </Button>
+            <Button
+              size="small"
               startIcon={<PriceChangeIcon />}
-              onClick={() => setDialog("price")}
+              onClick={() => {
+                setPricePreset(null);
+                setDialog("price");
+              }}
             >
               Set price
+            </Button>
+            <Button
+              size="small"
+              startIcon={<CallSplitIcon />}
+              onClick={() => setDialog("split")}
+            >
+              Add split
             </Button>
             <Button
               size="small"
@@ -870,7 +1227,6 @@ export default function WealthTracker() {
             </TableHead>
             <TableBody>
               {holdings.map((h) => {
-                const stale = !h.lastPrice;
                 const up = Number(h.unrealisedPlDisplay) >= 0;
                 return (
                   <TableRow key={h.securityId}>
@@ -883,6 +1239,17 @@ export default function WealthTracker() {
                           sx={{ ml: 0.5 }}
                         />
                       )}
+                      <MuiTooltip title="Edit security / price symbol">
+                        <IconButton
+                          size="small"
+                          aria-label={`edit security ${h.ticker}`}
+                          onClick={() =>
+                            setEditSecurity(securityById[h.securityId])
+                          }
+                        >
+                          <EditIcon sx={{ fontSize: 14 }} />
+                        </IconButton>
+                      </MuiTooltip>
                       {h.name && (
                         <Typography
                           variant="caption"
@@ -898,13 +1265,51 @@ export default function WealthTracker() {
                       {fmt2(h.avgCost, h.currency)}
                     </TableCell>
                     <TableCell align="right">
-                      {stale ? (
-                        <MuiTooltip title="No price set">
-                          <span style={{ color: "#999" }}>—</span>
-                        </MuiTooltip>
+                      {editingPrice === h.securityId ? (
+                        <TextField
+                          size="small"
+                          type="number"
+                          autoFocus
+                          value={priceDraft}
+                          onChange={(e) => setPriceDraft(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              e.target.blur();
+                            } else if (e.key === "Escape") {
+                              cancelInlineRef.current = true;
+                              e.target.blur();
+                            }
+                          }}
+                          onBlur={() => commitInlinePrice(h)}
+                          inputProps={{
+                            step: "0.01",
+                            "aria-label": `set price ${h.ticker}`,
+                          }}
+                          sx={{ width: 110 }}
+                        />
                       ) : (
-                        <MuiTooltip title={`as of ${h.lastPriceDate}`}>
-                          <span>{fmt2(h.lastPrice, h.currency)}</span>
+                        <MuiTooltip
+                          title={`Click to set/correct price${h.lastPriceDate ? ` (last: ${h.lastPriceDate})` : ""}`}
+                        >
+                          <span
+                            role="button"
+                            tabIndex={0}
+                            aria-label={`set price ${h.ticker}`}
+                            onClick={() => startInlinePrice(h)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") startInlinePrice(h);
+                            }}
+                            style={{
+                              cursor: "pointer",
+                              color: h.priceIsEstimated ? "#999" : undefined,
+                              borderBottom: "1px dotted #999",
+                            }}
+                          >
+                            {h.priceIsEstimated
+                              ? `${fmt2(h.avgCost, h.currency)} (avg)`
+                              : fmt2(h.lastPrice, h.currency)}
+                          </span>
                         </MuiTooltip>
                       )}
                     </TableCell>
@@ -1033,51 +1438,74 @@ export default function WealthTracker() {
         )}
       </Paper>
 
-      {/* Trade blotter */}
+      {/* Trade blotter (trades + corporate actions) */}
       <Paper sx={{ p: 2, mb: 2 }}>
         <Typography variant="h6" gutterBottom>
           Trade blotter
         </Typography>
-        {trades.length ? (
+        {blotter.length ? (
           <Table size="small">
             <TableHead>
               <TableRow>
                 <TableCell>Date</TableCell>
                 <TableCell>Security</TableCell>
-                <TableCell>Side</TableCell>
-                <TableCell align="right">Qty</TableCell>
+                <TableCell>Type</TableCell>
+                <TableCell align="right">Qty / ratio</TableCell>
                 <TableCell align="right">Price</TableCell>
                 <TableCell align="right">Fee</TableCell>
                 <TableCell align="right" />
               </TableRow>
             </TableHead>
             <TableBody>
-              {trades.map((t) => (
-                <TableRow key={t.id}>
-                  <TableCell>{t.tradeDate}</TableCell>
-                  <TableCell>
-                    {tickerById[t.securityId] || t.securityId}
-                  </TableCell>
-                  <TableCell>
-                    <Chip
-                      size="small"
-                      label={t.side}
-                      color={t.side === "BUY" ? "success" : "default"}
-                    />
-                  </TableCell>
-                  <TableCell align="right">{Number(t.quantity)}</TableCell>
-                  <TableCell align="right">{Number(t.price)}</TableCell>
-                  <TableCell align="right">{Number(t.fee)}</TableCell>
-                  <TableCell align="right">
-                    <IconButton
-                      size="small"
-                      onClick={() => wealth.removeTrade(t.id)}
-                    >
-                      <DeleteIcon fontSize="small" />
-                    </IconButton>
-                  </TableCell>
-                </TableRow>
-              ))}
+              {blotter.map((r) =>
+                r.kind === "split" ? (
+                  <TableRow key={r.id}>
+                    <TableCell>{r.date}</TableCell>
+                    <TableCell>
+                      {tickerById[r.securityId] || r.securityId}
+                    </TableCell>
+                    <TableCell>
+                      <Chip size="small" label="SPLIT" color="info" />
+                    </TableCell>
+                    <TableCell align="right">{fmtRatio(r.ratio)}</TableCell>
+                    <TableCell align="right">—</TableCell>
+                    <TableCell align="right">—</TableCell>
+                    <TableCell align="right">
+                      <IconButton
+                        size="small"
+                        onClick={() => wealth.removeSplit(r.rawId)}
+                      >
+                        <DeleteIcon fontSize="small" />
+                      </IconButton>
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  <TableRow key={r.id}>
+                    <TableCell>{r.date}</TableCell>
+                    <TableCell>
+                      {tickerById[r.securityId] || r.securityId}
+                    </TableCell>
+                    <TableCell>
+                      <Chip
+                        size="small"
+                        label={r.side}
+                        color={r.side === "BUY" ? "success" : "default"}
+                      />
+                    </TableCell>
+                    <TableCell align="right">{Number(r.quantity)}</TableCell>
+                    <TableCell align="right">{Number(r.price)}</TableCell>
+                    <TableCell align="right">{Number(r.fee)}</TableCell>
+                    <TableCell align="right">
+                      <IconButton
+                        size="small"
+                        onClick={() => wealth.removeTrade(r.rawId)}
+                      >
+                        <DeleteIcon fontSize="small" />
+                      </IconButton>
+                    </TableCell>
+                  </TableRow>
+                ),
+              )}
             </TableBody>
           </Table>
         ) : (
@@ -1088,9 +1516,10 @@ export default function WealthTracker() {
       </Paper>
 
       <Typography variant="caption" color="text.secondary">
-        Manual entry (v1): set prices and the USD→AUD rate by hand. Super
-        balance entered here feeds the Super Forecast. Snapshots are captured
-        monthly.
+        Prices &amp; the USD→AUD rate auto-refresh daily (Yahoo); use “Refresh
+        prices” to pull now, or the ✎ on a row to set/correct a price by hand
+        (manual prices are never overwritten by the feed). Super balance entered
+        here feeds the Super Forecast. Snapshots are captured monthly.
       </Typography>
 
       {/* Dialogs */}
@@ -1123,14 +1552,37 @@ export default function WealthTracker() {
       <PriceDialog
         open={dialog === "price"}
         securities={securities}
-        onClose={() => setDialog(null)}
+        presetSecurityId={pricePreset}
+        onClose={() => {
+          setDialog(null);
+          setPricePreset(null);
+        }}
         onSave={(p) => wealth.setPrice(p)}
+      />
+      <SplitDialog
+        open={dialog === "split"}
+        securities={securities}
+        onClose={() => setDialog(null)}
+        onSave={(s) => wealth.addSplit(s)}
       />
       <FxDialog
         open={dialog === "fx"}
         currentRate={summary?.fxRateUsdAud}
         onClose={() => setDialog(null)}
         onSave={(r) => wealth.setFx(r)}
+      />
+      <SecurityDialog
+        open={!!editSecurity}
+        security={editSecurity}
+        onClose={() => setEditSecurity(null)}
+        onSave={(id, patch) => wealth.updateSecurity(id, patch)}
+      />
+      <Snackbar
+        open={!!snack}
+        autoHideDuration={6000}
+        onClose={() => setSnack(null)}
+        message={snack || ""}
+        anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
       />
     </Box>
   );
