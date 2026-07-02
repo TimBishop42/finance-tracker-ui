@@ -40,6 +40,11 @@ export const DEFAULT_SUPER_INPUTS = {
   // feeds the latest tracked salary); `monthlyContribution` is the fallback.
   sgRate: 12, // Super Guarantee %
   salarySacrificeAnnual: 0, // extra pre-tax (concessional) contributions per year
+  // Optional flat extra contribution you commit to and maintain (unindexed)
+  // until retirement — e.g. "an extra $100/mo". Governed by the same 15%
+  // contributions-tax toggle as salary sacrifice (treated as concessional).
+  additionalContribution: 0,
+  additionalContributionFrequency: "monthly", // "monthly" | "yearly"
   contributionGrowthPct: 3.7, // wage inflation — grows contributions each year
   returnAccumPct: 7.5, // gross return before fees/tax (MoneySmart docs ~8%)
   earningsTaxAccumPct: 7, // ~7% effective earnings tax in accumulation (0 = model a net return)
@@ -48,6 +53,8 @@ export const DEFAULT_SUPER_INPUTS = {
   feeFixedAnnual: 74, // annual fixed admin fee ($)
   insuranceAnnual: 0, // annual insurance premium ($)
   // Drawdown
+  // Entered in TODAY's dollars. It is inflated to the year drawdown begins so
+  // the first year of retirement has this purchasing power (see projectSuper).
   desiredAnnualDrawdown: 60000,
   useStatutoryMin: false, // draw the legislated minimum % instead of a fixed amount
   indexDrawdownToInflation: true, // grow the desired drawdown by inflation each year
@@ -130,11 +137,22 @@ export function projectSuper(input) {
     ? (num(i.annualSalary) * sgRate + num(i.salarySacrificeAnnual)) / 12
     : num(i.monthlyContribution);
 
+  // Flat extra contribution maintained (unindexed) until retirement. Kept
+  // separate from the derived contribution because it does NOT grow with wage
+  // inflation — "an extra $X/mo" means the same $X every month.
+  const additionalMonthlyContribution = Math.max(
+    0,
+    i.additionalContributionFrequency === "yearly"
+      ? num(i.additionalContribution) / 12
+      : num(i.additionalContribution),
+  );
+
   // --- Accumulation phase ---
   let contribMonthly = Math.max(0, derivedMonthlyContribution);
   for (let age = currentAge; age < retirementAge; age++) {
     for (let m = 0; m < 12; m++) {
-      const contrib = contribMonthly * (1 - contribTaxRate);
+      const contrib =
+        (contribMonthly + additionalMonthlyContribution) * (1 - contribTaxRate);
       balance += contrib;
       totalContributions += contrib;
 
@@ -153,8 +171,13 @@ export function projectSuper(input) {
   const balanceAtRetirement = balance;
 
   // --- Drawdown phase (account-based pension; 0% earnings tax) ---
+  // `desiredAnnualDrawdown` is entered in TODAY's dollars. Inflate it to the
+  // year drawdown begins so the first year of retirement delivers that same
+  // purchasing power (e.g. $60k today ≈ $98k nominal in 20 years at 2.5% CPI).
   let depletionAge = null;
-  let desired = Math.max(0, num(i.desiredAnnualDrawdown));
+  let desired =
+    Math.max(0, num(i.desiredAnnualDrawdown)) *
+    Math.pow(1 + inflation, retirementAge - currentAge);
   let firstYearWithdrawal = 0;
 
   for (let age = retirementAge; age < endAge; age++) {
@@ -203,6 +226,8 @@ export function projectSuper(input) {
     totalContributions,
     monthlyContribution: derivedMonthlyContribution,
     annualContribution: derivedMonthlyContribution * 12,
+    additionalMonthlyContribution,
+    additionalAnnualContribution: additionalMonthlyContribution * 12,
   };
 
   return { series, summary };

@@ -35,22 +35,47 @@ import {
   Area,
 } from "recharts";
 import {
-  getMonthlySpendComparison,
   getSummaryMonths,
   getCumulativeSpend,
   getMaxSpendValue,
 } from "../../services/finance-service";
 
 const MONTH_NAMES = [
-  "January","February","March","April","May","June",
-  "July","August","September","October","November","December",
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
 ];
 
-const fmt = (n) =>
-  "$" + Math.round(n || 0).toLocaleString("en-US");
+// A DisplayMonth's `month` is a Java enum whose JSON shape we don't want to
+// depend on; each CategoryValue carries the unambiguous enum name ("MARCH").
+// Return a 1-based month number so we can match a summary to the viewed month.
+function displayMonthNumber(dm) {
+  const raw = dm?.categoryValues?.[0]?.month ?? dm?.month;
+  if (typeof raw === "number") return raw;
+  const idx = MONTH_NAMES.findIndex(
+    (n) => n.toUpperCase() === String(raw).toUpperCase(),
+  );
+  return idx >= 0 ? idx + 1 : null;
+}
+
+const fmt = (n) => "$" + Math.round(n || 0).toLocaleString("en-US");
 
 // ─── Budget Card ─────────────────────────────────────────────────────────────
-function BudgetCard({ currentSpend, targetSpend, loading }) {
+function BudgetCard({
+  currentSpend,
+  targetSpend,
+  loading,
+  label = "This Month",
+}) {
   const pct = Math.min(100, Math.round((currentSpend / targetSpend) * 100));
   const remaining = targetSpend - currentSpend;
   const color = pct <= 75 ? "success" : pct <= 90 ? "warning" : "error";
@@ -59,7 +84,7 @@ function BudgetCard({ currentSpend, targetSpend, loading }) {
     <Card variant="outlined" sx={{ height: "100%" }}>
       <CardContent>
         <Typography variant="overline" color="text.secondary">
-          This Month
+          {label}
         </Typography>
         {loading ? (
           <Box sx={{ mt: 2 }}>
@@ -77,7 +102,11 @@ function BudgetCard({ currentSpend, targetSpend, loading }) {
               sx={{ height: 6, borderRadius: 3, my: 1 }}
             />
             <Box sx={{ display: "flex", justifyContent: "space-between" }}>
-              <Typography variant="body2" color={`${color}.main`} fontWeight={600}>
+              <Typography
+                variant="body2"
+                color={`${color}.main`}
+                fontWeight={600}
+              >
                 {pct}% of budget
               </Typography>
               <Typography variant="body2" color="text.secondary">
@@ -94,7 +123,14 @@ function BudgetCard({ currentSpend, targetSpend, loading }) {
 }
 
 // ─── vs Last Month Card ───────────────────────────────────────────────────────
-function VsLastMonthCard({ currentSpend, lastMonthTotal, daysElapsed, daysInMonth, loading }) {
+function VsLastMonthCard({
+  currentSpend,
+  lastMonthTotal,
+  daysElapsed,
+  daysInMonth,
+  loading,
+  isCurrentMonth,
+}) {
   const pctThrough =
     lastMonthTotal > 0
       ? Math.round((currentSpend / lastMonthTotal) * 100)
@@ -127,11 +163,13 @@ function VsLastMonthCard({ currentSpend, lastMonthTotal, daysElapsed, daysInMont
                 fontWeight={600}
                 sx={{ mb: 0.25 }}
               >
-                {isOver ? "▲" : "▼"} {fmt(Math.abs(delta))} vs last month
+                {isOver ? "▲" : "▼"} {fmt(Math.abs(delta))} vs prior month
               </Typography>
             )}
             <Typography variant="body2" color="text.secondary">
-              this month so far · day {daysElapsed} of {daysInMonth}
+              {isCurrentMonth
+                ? `this month so far · day ${daysElapsed} of ${daysInMonth}`
+                : "full month vs prior month"}
             </Typography>
           </>
         )}
@@ -190,7 +228,14 @@ function TopCategoryCard({ categoryValues, totalSpend, loading }) {
 }
 
 // ─── Insight Strip ────────────────────────────────────────────────────────────
-function InsightStrip({ dailyAvg, daysRemaining, daysInMonth, projected, targetSpend, isCurrentMonth }) {
+function InsightStrip({
+  dailyAvg,
+  daysRemaining,
+  daysInMonth,
+  projected,
+  targetSpend,
+  isCurrentMonth,
+}) {
   if (!isCurrentMonth) return null;
 
   const status =
@@ -202,8 +247,16 @@ function InsightStrip({ dailyAvg, daysRemaining, daysInMonth, projected, targetS
 
   return (
     <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", mb: 3 }}>
-      <Chip size="small" label={`${daysRemaining} days remaining`} variant="outlined" />
-      <Chip size="small" label={`Daily avg ${fmt(dailyAvg)}`} variant="outlined" />
+      <Chip
+        size="small"
+        label={`${daysRemaining} days remaining`}
+        variant="outlined"
+      />
+      <Chip
+        size="small"
+        label={`Daily avg ${fmt(dailyAvg)}`}
+        variant="outlined"
+      />
       <Chip size="small" label={status.label} color={status.color} />
     </Box>
   );
@@ -214,7 +267,12 @@ function ChartTooltip({ active, payload, label }) {
   if (!active || !payload?.length) return null;
   return (
     <Paper elevation={4} sx={{ p: 1.5, minWidth: 140 }}>
-      <Typography variant="caption" color="text.secondary" display="block" gutterBottom>
+      <Typography
+        variant="caption"
+        color="text.secondary"
+        display="block"
+        gutterBottom
+      >
         Day {label}
       </Typography>
       {payload.map((p) => (
@@ -235,7 +293,14 @@ function ChartTooltip({ active, payload, label }) {
 }
 
 // ─── Spending Chart ───────────────────────────────────────────────────────────
-function SpendingChart({ cumulativeData, targetSpend, selectedMonth, selectedYear, onNavigateMonth, loading }) {
+function SpendingChart({
+  cumulativeData,
+  targetSpend,
+  selectedMonth,
+  selectedYear,
+  onNavigateMonth,
+  loading,
+}) {
   const theme = useTheme();
 
   const now = new Date();
@@ -244,17 +309,21 @@ function SpendingChart({ cumulativeData, targetSpend, selectedMonth, selectedYea
   const todayDay = now.getDate();
   const daysInMonth = new Date(selectedYear, selectedMonth, 0).getDate();
 
-  const canGoNext =
-    !(selectedYear === now.getFullYear() && selectedMonth === now.getMonth() + 1);
+  const canGoNext = !(
+    selectedYear === now.getFullYear() && selectedMonth === now.getMonth() + 1
+  );
 
   const chartData = useMemo(() => {
     if (!cumulativeData || cumulativeData.length === 0) return [];
 
     const dataMap = {};
-    cumulativeData.forEach((d) => { dataMap[d.name] = d.amount; });
+    cumulativeData.forEach((d) => {
+      dataMap[d.name] = d.amount;
+    });
 
     const lastActualDay = isCurrentMonth ? todayDay : daysInMonth;
-    const lastActualAmount = cumulativeData[cumulativeData.length - 1]?.amount || 0;
+    const lastActualAmount =
+      cumulativeData[cumulativeData.length - 1]?.amount || 0;
     const dailyAvg = lastActualDay > 0 ? lastActualAmount / lastActualDay : 0;
 
     const result = [];
@@ -274,7 +343,10 @@ function SpendingChart({ cumulativeData, targetSpend, selectedMonth, selectedYea
   }, [cumulativeData, isCurrentMonth, todayDay, daysInMonth]);
 
   const maxY = useMemo(() => {
-    const maxActual = Math.max(0, ...(cumulativeData || []).map((d) => d.amount));
+    const maxActual = Math.max(
+      0,
+      ...(cumulativeData || []).map((d) => d.amount),
+    );
     const lastProjected = chartData[chartData.length - 1]?.projected || 0;
     const raw = Math.max(targetSpend * 1.08, maxActual, lastProjected);
     return Math.ceil(raw / 1000) * 1000;
@@ -283,7 +355,12 @@ function SpendingChart({ cumulativeData, targetSpend, selectedMonth, selectedYea
   if (loading) {
     return (
       <Box
-        sx={{ height: 340, display: "flex", alignItems: "center", justifyContent: "center" }}
+        sx={{
+          height: 340,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
       >
         <CircularProgress />
       </Box>
@@ -293,9 +370,16 @@ function SpendingChart({ cumulativeData, targetSpend, selectedMonth, selectedYea
   if (!chartData.length) {
     return (
       <Box
-        sx={{ height: 340, display: "flex", alignItems: "center", justifyContent: "center" }}
+        sx={{
+          height: 340,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
       >
-        <Typography color="text.secondary">No spending data for this month</Typography>
+        <Typography color="text.secondary">
+          No spending data for this month
+        </Typography>
       </Box>
     );
   }
@@ -445,7 +529,6 @@ function SpendingChart({ cumulativeData, targetSpend, selectedMonth, selectedYea
 
 // ─── Dashboard ────────────────────────────────────────────────────────────────
 export default function Dashboard() {
-  const [monthlyData, setMonthlyData] = useState(null);
   const [summaryData, setSummaryData] = useState(null);
   const [cumulativeData, setCumulativeData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -494,7 +577,10 @@ export default function Dashboard() {
       setTimeout(() => setQuickAddStatus(null), 2000);
     } catch (err) {
       console.error("Quick add error:", err);
-      setQuickAddStatus({ type: "error", message: "Failed to add transaction." });
+      setQuickAddStatus({
+        type: "error",
+        message: "Failed to add transaction.",
+      });
       setTimeout(() => setQuickAddStatus(null), 3000);
     }
   };
@@ -508,22 +594,43 @@ export default function Dashboard() {
   const daysInMonth = new Date(selectedYear, selectedMonth, 0).getDate();
   const daysElapsed = isCurrentMonth ? now.getDate() : daysInMonth;
   const daysRemaining = isCurrentMonth ? daysInMonth - now.getDate() : 0;
-  const currentSpend = parseFloat(monthlyData?.currentMonthSpend || 0);
-  const dailyAvg = daysElapsed > 0 ? currentSpend / daysElapsed : 0;
+
+  // Spend for the month actually being viewed. `cumulativeData` is re-fetched
+  // per selected month, so its last (running total) point is that month's spend
+  // (spend-so-far for the current month, full total for past months).
+  const selectedMonthSpend =
+    cumulativeData && cumulativeData.length > 0
+      ? cumulativeData[cumulativeData.length - 1].amount
+      : 0;
+
+  const dailyAvg = daysElapsed > 0 ? selectedMonthSpend / daysElapsed : 0;
   const projected = Math.round(dailyAvg * daysInMonth);
 
-  // After server sort fix: index 0 = last month, last index = current month
-  const currentMonthSummary = summaryData?.[summaryData.length - 1];
-  const lastMonthTotal = summaryData?.[0]?.totalMonthlySpend || 0;
+  // Summary rows (one per month, with category breakdown + total) are keyed to
+  // the viewed month so the "Top Category" and "vs prior month" cards track
+  // navigation, not just the current calendar month. Falls back to null when
+  // the viewed month is outside the fetched window.
+  const findSummary = (month, year) =>
+    summaryData?.find(
+      (dm) => dm.year === year && displayMonthNumber(dm) === month,
+    ) ?? null;
+
+  const selectedMonthSummary = findSummary(selectedMonth, selectedYear);
+  const prevMonth = selectedMonth === 1 ? 12 : selectedMonth - 1;
+  const prevMonthYear = selectedMonth === 1 ? selectedYear - 1 : selectedYear;
+  const prevMonthTotal =
+    findSummary(prevMonth, prevMonthYear)?.totalMonthlySpend || 0;
 
   const fetchCumulativeData = async (month, year) => {
     try {
       setChartLoading(true);
       const cumulativeSpend = await getCumulativeSpend(month, year);
-      const chartData = cumulativeSpend.cumulativeValues.map((value, index) => ({
-        name: index + 1,
-        amount: parseFloat(value),
-      }));
+      const chartData = cumulativeSpend.cumulativeValues.map(
+        (value, index) => ({
+          name: index + 1,
+          amount: parseFloat(value),
+        }),
+      );
       setCumulativeData(chartData);
     } catch (err) {
       console.error("Error fetching cumulative data:", err);
@@ -537,16 +644,23 @@ export default function Dashboard() {
     let newYear = selectedYear;
     if (direction === "prev") {
       newMonth -= 1;
-      if (newMonth < 1) { newMonth = 12; newYear -= 1; }
+      if (newMonth < 1) {
+        newMonth = 12;
+        newYear -= 1;
+      }
     } else {
       newMonth += 1;
-      if (newMonth > 12) { newMonth = 1; newYear += 1; }
+      if (newMonth > 12) {
+        newMonth = 1;
+        newYear += 1;
+      }
     }
     const n = new Date();
     if (
       newYear > n.getFullYear() ||
       (newYear === n.getFullYear() && newMonth > n.getMonth() + 1)
-    ) return;
+    )
+      return;
     setSelectedMonth(newMonth);
     setSelectedYear(newYear);
   };
@@ -554,12 +668,13 @@ export default function Dashboard() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [monthlyComparison, summaryMonths, maxSpend] = await Promise.all([
-          getMonthlySpendComparison(),
-          getSummaryMonths(2),
+        // Fetch a rolling window of months so the summary cards have data for
+        // whichever month the user navigates to (plus the prior month for the
+        // comparison card).
+        const [summaryMonths, maxSpend] = await Promise.all([
+          getSummaryMonths(14),
           getMaxSpendValue(),
         ]);
-        setMonthlyData(monthlyComparison);
         setSummaryData(summaryMonths);
         setTargetSpend(maxSpend);
       } catch (err) {
@@ -577,7 +692,8 @@ export default function Dashboard() {
   }, [selectedMonth, selectedYear, loading]);
 
   useEffect(() => {
-    if (!loading && !cumulativeData) fetchCumulativeData(selectedMonth, selectedYear);
+    if (!loading && !cumulativeData)
+      fetchCumulativeData(selectedMonth, selectedYear);
   }, [loading]);
 
   useEffect(() => {
@@ -595,7 +711,9 @@ export default function Dashboard() {
   if (error) {
     return (
       <Box sx={{ p: 3 }}>
-        <Typography color="error">Error loading dashboard data: {error}</Typography>
+        <Typography color="error">
+          Error loading dashboard data: {error}
+        </Typography>
       </Box>
     );
   }
@@ -611,7 +729,14 @@ export default function Dashboard() {
           <FlashOn fontSize="small" />
           Quick Add
         </Typography>
-        <Box sx={{ display: "flex", gap: 2, alignItems: "center", flexWrap: "wrap" }}>
+        <Box
+          sx={{
+            display: "flex",
+            gap: 2,
+            alignItems: "center",
+            flexWrap: "wrap",
+          }}
+        >
           <ToggleButtonGroup
             value={quickAdd.transactionType}
             exclusive
@@ -691,7 +816,9 @@ export default function Dashboard() {
               variant="body2"
               sx={{
                 color:
-                  quickAddStatus.type === "success" ? "success.main" : "error.main",
+                  quickAddStatus.type === "success"
+                    ? "success.main"
+                    : "error.main",
               }}
             >
               {quickAddStatus.message}
@@ -704,25 +831,31 @@ export default function Dashboard() {
       <Grid container spacing={3} sx={{ mb: 3 }}>
         <Grid item xs={12} md={4}>
           <BudgetCard
-            currentSpend={currentSpend}
+            currentSpend={selectedMonthSpend}
             targetSpend={targetSpend}
-            loading={loading}
+            loading={loading || chartLoading || !cumulativeData}
+            label={
+              isCurrentMonth
+                ? "This Month"
+                : `${MONTH_NAMES[selectedMonth - 1]} ${selectedYear}`
+            }
           />
         </Grid>
         <Grid item xs={12} md={4}>
           <VsLastMonthCard
-            currentSpend={currentSpend}
-            lastMonthTotal={lastMonthTotal}
+            currentSpend={selectedMonthSpend}
+            lastMonthTotal={prevMonthTotal}
             daysElapsed={daysElapsed}
             daysInMonth={daysInMonth}
-            loading={loading}
+            loading={loading || chartLoading || !cumulativeData}
+            isCurrentMonth={isCurrentMonth}
           />
         </Grid>
         <Grid item xs={12} md={4}>
           <TopCategoryCard
-            categoryValues={currentMonthSummary?.categoryValues}
-            totalSpend={currentSpend}
-            loading={loading}
+            categoryValues={selectedMonthSummary?.categoryValues}
+            totalSpend={selectedMonthSpend}
+            loading={loading || chartLoading || !cumulativeData}
           />
         </Grid>
       </Grid>

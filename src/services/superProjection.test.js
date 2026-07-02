@@ -82,6 +82,75 @@ describe("superProjection", () => {
     expect(summary.depletionAge).toBeLessThan(63);
   });
 
+  test("desired drawdown is entered in today's dollars and inflated to retirement", () => {
+    const { summary } = projectSuper({
+      currentAge: 40,
+      retirementAge: 60, // 20 years out
+      endAge: 61,
+      inflationPct: 2.5,
+      desiredAnnualDrawdown: 60000,
+      useStatutoryMin: false,
+    });
+    // First-year income keeps its today's-dollars purchasing power...
+    expect(summary.firstYearIncomeReal).toBeCloseTo(60000, 0);
+    // ...which means the nominal amount is inflated over the 20 years.
+    expect(summary.firstYearIncomeNominal).toBeCloseTo(
+      60000 * Math.pow(1.025, 20),
+      0,
+    );
+  });
+
+  test("desired drawdown is unchanged when retirement is now (no years to inflate)", () => {
+    const { summary } = projectSuper({
+      currentAge: 60,
+      retirementAge: 60,
+      endAge: 61,
+      inflationPct: 2.5,
+      desiredAnnualDrawdown: 60000,
+      useStatutoryMin: false,
+    });
+    expect(summary.firstYearIncomeNominal).toBeCloseTo(60000, 2);
+  });
+
+  test("additional contribution adds a flat, unindexed amount until retirement", () => {
+    const base = {
+      currentAge: 30,
+      retirementAge: 40, // 10 years
+      endAge: 40,
+      startingBalance: 0,
+      monthlyContribution: 0,
+      contributionGrowthPct: 0,
+      returnAccumPct: 0,
+      earningsTaxAccumPct: 0,
+      applyContribTax: false,
+      feePct: 0,
+      feeFixedAnnual: 0,
+      insuranceAnnual: 0,
+      inflationPct: 0,
+    };
+    const monthly = projectSuper({
+      ...base,
+      additionalContribution: 100,
+      additionalContributionFrequency: "monthly",
+    });
+    // 100/mo * 12 * 10 years = 12000
+    expect(monthly.summary.balanceAtRetirementNominal).toBeCloseTo(12000, 2);
+    expect(monthly.summary.additionalAnnualContribution).toBeCloseTo(1200, 2);
+
+    // A yearly frequency divides evenly across the 12 months; 15% tax applies
+    // just as it does to salary sacrifice.
+    const yearly = projectSuper({
+      ...base,
+      applyContribTax: true,
+      additionalContribution: 1200,
+      additionalContributionFrequency: "yearly",
+    });
+    expect(yearly.summary.balanceAtRetirementNominal).toBeCloseTo(
+      12000 * 0.85,
+      2,
+    );
+  });
+
   test("statutory minimum first-year income matches balance x age rate", () => {
     const { summary } = projectSuper({
       currentAge: 60,

@@ -346,12 +346,47 @@ export default function SuperTracker() {
                   step={500}
                 />
               </Grid>
+              <Grid item xs={7}>
+                <NumField
+                  label="Additional contribution"
+                  field="additionalContribution"
+                  value={inputs.additionalContribution}
+                  onChange={setField}
+                  adornment="$"
+                  step={50}
+                  helper="flat extra, kept up until you retire"
+                />
+              </Grid>
+              <Grid item xs={5}>
+                <ToggleButtonGroup
+                  size="small"
+                  exclusive
+                  fullWidth
+                  value={inputs.additionalContributionFrequency}
+                  onChange={(_, v) =>
+                    v && setField("additionalContributionFrequency", v)
+                  }
+                >
+                  <ToggleButton value="monthly">/ mo</ToggleButton>
+                  <ToggleButton value="yearly">/ yr</ToggleButton>
+                </ToggleButtonGroup>
+              </Grid>
               <Grid item xs={12}>
                 <Typography variant="caption" color="text.secondary">
                   Derived contributions:{" "}
                   <strong>{fmt(summary.annualContribution)}</strong>/yr (
                   {fmt(summary.monthlyContribution)}/mo) — concessional; 15%
                   contributions tax applies if the toggle below is on.
+                  {summary.additionalAnnualContribution > 0 && (
+                    <>
+                      {" "}
+                      Plus an extra{" "}
+                      <strong>
+                        {fmt(summary.additionalAnnualContribution)}
+                      </strong>
+                      /yr on top (same tax treatment).
+                    </>
+                  )}
                 </Typography>
               </Grid>
             </Grid>
@@ -485,6 +520,7 @@ export default function SuperTracker() {
                   onChange={setField}
                   adornment="$"
                   step={1000}
+                  helper="in today's $ — inflated to your retirement year"
                 />
               </Grid>
               <Grid item xs={6}>

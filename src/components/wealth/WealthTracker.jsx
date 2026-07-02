@@ -1119,46 +1119,60 @@ export default function WealthTracker() {
               Net worth over time
             </Typography>
             {snapData.length ? (
-              <ResponsiveContainer width="100%" height={250}>
-                <AreaChart
-                  data={snapData}
-                  margin={{ top: 5, right: 10, bottom: 5, left: 0 }}
+              <>
+                <ResponsiveContainer
+                  width="100%"
+                  height={snapData.length === 1 ? 215 : 250}
                 >
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="date" />
-                  <YAxis tickFormatter={compact} />
-                  <Tooltip formatter={(v) => fmt(v, currency)} />
-                  <Legend />
-                  <Area
-                    type="monotone"
-                    dataKey="assets"
-                    name="Assets"
-                    stroke="#66bb6a"
-                    fill="#66bb6a"
-                    fillOpacity={0.15}
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="liabilities"
-                    name="Liabilities"
-                    stroke="#ef5350"
-                    fill="#ef5350"
-                    fillOpacity={0.15}
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="netWorth"
-                    name="Net worth"
-                    stroke="#1976d2"
-                    fill="#1976d2"
-                    fillOpacity={0.25}
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
+                  <AreaChart
+                    data={snapData}
+                    margin={{ top: 5, right: 10, bottom: 5, left: 0 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="date" />
+                    <YAxis tickFormatter={compact} />
+                    <Tooltip formatter={(v) => fmt(v, currency)} />
+                    <Legend />
+                    <Area
+                      type="monotone"
+                      dataKey="assets"
+                      name="Assets"
+                      stroke="#66bb6a"
+                      fill="#66bb6a"
+                      fillOpacity={0.15}
+                      dot={{ r: 2 }}
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="liabilities"
+                      name="Liabilities"
+                      stroke="#ef5350"
+                      fill="#ef5350"
+                      fillOpacity={0.15}
+                      dot={{ r: 2 }}
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="netWorth"
+                      name="Net worth"
+                      stroke="#1976d2"
+                      fill="#1976d2"
+                      fillOpacity={0.25}
+                      dot={{ r: 3 }}
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+                {snapData.length === 1 && (
+                  <Typography variant="caption" color="text.secondary">
+                    Only one snapshot so far — snapshot on different days (or
+                    wait for the monthly auto-capture) to see a trend line.
+                  </Typography>
+                )}
+              </>
             ) : (
               <Typography variant="body2" color="text.secondary">
-                No snapshots yet — they're captured monthly, or hit “Snapshot
-                now”.
+                No snapshots yet — hit “Snapshot now” to capture today; points
+                accumulate over time.
               </Typography>
             )}
           </Paper>
