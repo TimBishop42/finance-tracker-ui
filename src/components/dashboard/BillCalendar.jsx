@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useMemo } from "react";
 import {
   Box,
   Typography,
@@ -19,10 +19,7 @@ import {
   ChevronRight as ChevronRightIcon,
   CalendarToday as CalendarTodayIcon,
 } from "@mui/icons-material";
-import RestClient from "../../rest/CategoryClient";
-import { detectRecurring } from "../../services/recurringDetection";
-import { useExcludedMerchants } from "../../services/useExcludedMerchants";
-import { useCustomMerchants } from "../../services/useCustomMerchants";
+import { useRecurring } from "../../services/useRecurring";
 
 const CAT_COLORS = {
   Bills: "#ef5350",
@@ -89,37 +86,26 @@ const DOW_HEADERS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
 // ─── component ────────────────────────────────────────────────────────────────
 
-export default function BillCalendar() {
-  const [txns, setTxns] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+// Day-of-month a bill falls on: the detector's predictedDay, else the day of
+// the predicted next charge (covers non-monthly bills that have no predictedDay).
+function billDayOfMonth(bill) {
+  if (bill.predictedDay != null) return bill.predictedDay;
+  if (bill.nextPredictedDate) {
+    return new Date(bill.nextPredictedDate + "T00:00:00").getDate();
+  }
+  return 1;
+}
 
-  const { excluded } = useExcludedMerchants();
-  const { customMerchants } = useCustomMerchants();
+export default function BillCalendar() {
+  const { candidates, loading, error } = useRecurring();
 
   const today = new Date();
   const [displayYear, setDisplayYear] = useState(today.getFullYear());
   const [displayMonth, setDisplayMonth] = useState(today.getMonth());
 
-  useEffect(() => {
-    RestClient.get("/finance/find-all-transactions?recentMonth=false")
-      .then((r) => {
-        setTxns(r.data);
-        setLoading(false);
-      })
-      .catch((e) => {
-        console.error(e);
-        setError(e);
-        setLoading(false);
-      });
-  }, []);
-
   const monthlyBills = useMemo(
-    () =>
-      detectRecurring(txns, customMerchants).filter(
-        (r) => r.isBill && !excluded.has(r.key),
-      ),
-    [txns, customMerchants, excluded],
+    () => candidates.filter((c) => c.bill && !c.dismissed),
+    [candidates],
   );
 
   // Determine status for each bill in the currently displayed month
@@ -128,9 +114,9 @@ export default function BillCalendar() {
       displayYear === today.getFullYear() && displayMonth === today.getMonth();
     return monthlyBills
       .map((bill) => {
-        const paidThisMonth = bill.transactions.some((t) => {
-          if (!t.transactionDateTime) return false;
-          const d = new Date(t.transactionDateTime);
+        const day = billDayOfMonth(bill);
+        const paidThisMonth = (bill.chargeDates || []).some((iso) => {
+          const d = new Date(iso + "T00:00:00");
           return (
             d.getFullYear() === displayYear && d.getMonth() === displayMonth
           );
@@ -139,20 +125,23 @@ export default function BillCalendar() {
         let status;
         if (paidThisMonth) {
           status = "Paid";
-        } else if (isCurrentMonth && bill.predictedDay < today.getDate()) {
+        } else if (isCurrentMonth && day < today.getDate()) {
           status = "Overdue";
         } else {
           status = "Upcoming";
         }
 
-        return { ...bill, status };
+        return { ...bill, day, status };
       })
-      .sort((a, b) => a.predictedDay - b.predictedDay);
+      .sort((a, b) => a.day - b.day);
   }, [monthlyBills, displayYear, displayMonth, today]);
 
   // Summary stats
   const totalBills = billsWithStatus.length;
-  const totalAmount = billsWithStatus.reduce((s, b) => s + b.avg, 0);
+  const totalAmount = billsWithStatus.reduce(
+    (s, b) => s + (Number(b.expectedAmount) || 0),
+    0,
+  );
   const paidCount = billsWithStatus.filter((b) => b.status === "Paid").length;
 
   // Calendar grid
@@ -165,7 +154,7 @@ export default function BillCalendar() {
   const billsByDay = useMemo(() => {
     const map = {};
     billsWithStatus.forEach((bill) => {
-      const d = bill.predictedDay;
+      const d = bill.day;
       if (!map[d]) map[d] = [];
       map[d].push(bill);
     });
@@ -204,7 +193,7 @@ export default function BillCalendar() {
         alignItems="center"
         minHeight={300}
       >
-        <Typography color="error">Failed to load transactions.</Typography>
+        <Typography color="error">Failed to load bill data.</Typography>
       </Box>
     );
 
@@ -365,7 +354,7 @@ export default function BillCalendar() {
                         {dayBills.map((bill) => (
                           <Chip
                             key={bill.key}
-                            label={`${abbrev(bill.name)} $${Math.round(bill.avg)}`}
+                            label={`${abbrev(bill.name)} $${Math.round(Number(bill.expectedAmount) || 0)}`}
                             size="small"
                             sx={{
                               height: 18,
@@ -459,16 +448,18 @@ export default function BillCalendar() {
                   <TableCell align="right">
                     <Typography variant="body2" fontWeight={500}>
                       $
-                      {bill.avg.toLocaleString("en-US", {
-                        minimumFractionDigits: 2,
-                        maximumFractionDigits: 2,
-                      })}
+                      {(Number(bill.expectedAmount) || 0).toLocaleString(
+                        "en-US",
+                        {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        },
+                      )}
                     </Typography>
                   </TableCell>
                   <TableCell align="center">
                     <Typography variant="body2">
-                      {MONTH_NAMES[displayMonth].slice(0, 3)}{" "}
-                      {bill.predictedDay}
+                      {MONTH_NAMES[displayMonth].slice(0, 3)} {bill.day}
                     </Typography>
                   </TableCell>
                   <TableCell align="center">

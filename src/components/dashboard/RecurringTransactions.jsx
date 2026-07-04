@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useMemo } from "react";
 import {
   Box,
   Typography,
@@ -21,6 +21,7 @@ import {
   IconButton,
   Collapse,
   Button,
+  LinearProgress,
 } from "@mui/material";
 import {
   Search as SearchIcon,
@@ -30,10 +31,7 @@ import {
   ExpandMore as ExpandMoreIcon,
   ExpandLess as ExpandLessIcon,
 } from "@mui/icons-material";
-import RestClient from "../../rest/CategoryClient";
-import { detectRecurring } from "../../services/recurringDetection";
-import { useExcludedMerchants } from "../../services/useExcludedMerchants";
-import { useCustomMerchants } from "../../services/useCustomMerchants";
+import { useRecurring } from "../../services/useRecurring";
 
 const CAT_COLORS = {
   Bills: "#ef5350",
@@ -47,6 +45,45 @@ const CAT_COLORS = {
   House: "#26a69a",
 };
 
+const fmtMoney = (n) =>
+  "$" +
+  (Number(n) || 0).toLocaleString("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+
+const fmtDate = (iso) =>
+  iso
+    ? new Date(iso + "T00:00:00").toLocaleDateString("en-AU", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+      })
+    : "—";
+
+const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
+
+const confidenceColor = (c) =>
+  c >= 0.75 ? "success" : c >= 0.5 ? "warning" : "error";
+
+function ConfidenceCell({ value }) {
+  const pct = Math.round((value || 0) * 100);
+  const color = confidenceColor(value);
+  return (
+    <Box sx={{ minWidth: 90 }}>
+      <LinearProgress
+        variant="determinate"
+        value={pct}
+        color={color}
+        sx={{ height: 6, borderRadius: 3, mb: 0.25 }}
+      />
+      <Typography variant="caption" color={`${color}.main`} fontWeight={600}>
+        {pct}%
+      </Typography>
+    </Box>
+  );
+}
+
 function MerchantRow({ r, onDismiss }) {
   return (
     <TableRow hover>
@@ -55,7 +92,10 @@ function MerchantRow({ r, onDismiss }) {
           {r.name}
         </Typography>
         <Typography variant="caption" color="text.secondary">
-          {r.count} transactions
+          {r.occurrences} charges
+          {r.knowledgeSource && r.knowledgeSource !== "statistical"
+            ? ` · ${r.knowledgeSource === "custom" ? "your rule" : "known"}`
+            : ""}
         </Typography>
       </TableCell>
       <TableCell>
@@ -69,38 +109,33 @@ function MerchantRow({ r, onDismiss }) {
           }}
         />
       </TableCell>
-      <TableCell align="right">${r.avg.toFixed(2)}</TableCell>
+      <TableCell>
+        <Chip label={cap(r.cadence)} size="small" variant="outlined" />
+      </TableCell>
       <TableCell align="right">
         <Typography variant="body2" fontWeight={500}>
-          $
-          {r.total.toLocaleString("en-US", {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2,
-          })}
+          {fmtMoney(r.expectedAmount)}
         </Typography>
+        {r.amountVariable && (
+          <Typography variant="caption" color="warning.main">
+            variable
+          </Typography>
+        )}
+      </TableCell>
+      <TableCell>{fmtDate(r.nextPredictedDate)}</TableCell>
+      <TableCell align="center">
+        <ConfidenceCell value={r.confidence} />
       </TableCell>
       <TableCell align="center">
-        <Tooltip arrow title={`${r.distinctMonths} of ${r.monthsRange} months`}>
-          <Typography variant="body2">{r.distinctMonths}</Typography>
-        </Tooltip>
-      </TableCell>
-      <TableCell>
-        {r.lastDate
-          ? r.lastDate.toLocaleDateString("en-AU", {
-              day: "2-digit",
-              month: "short",
-              year: "numeric",
-            })
-          : "—"}
-      </TableCell>
-      <TableCell align="center">
-        {r.isSubscription ? (
+        {r.subscription ? (
           <Chip
             label="Subscription"
             size="small"
             color="primary"
             variant="outlined"
           />
+        ) : r.bill ? (
+          <Chip label="Bill" size="small" color="error" variant="outlined" />
         ) : (
           <Chip label="Recurring" size="small" variant="outlined" />
         )}
@@ -124,49 +159,26 @@ function MerchantRow({ r, onDismiss }) {
 }
 
 export default function RecurringTransactions() {
-  const [txns, setTxns] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const { candidates, engine, loading, error, dismiss, restore } =
+    useRecurring();
   const [search, setSearch] = useState("");
-  const [sortBy, setSortBy] = useState("total");
+  const [sortBy, setSortBy] = useState("confidence");
   const [filter, setFilter] = useState("all");
   const [showDismissed, setShowDismissed] = useState(false);
 
-  const { excluded, exclude, restore } = useExcludedMerchants();
-  const { customMerchants } = useCustomMerchants();
-
-  useEffect(() => {
-    RestClient.get("/finance/find-all-transactions?recentMonth=false")
-      .then((r) => {
-        setTxns(r.data);
-        setLoading(false);
-      })
-      .catch((e) => {
-        console.error(e);
-        setError(e);
-        setLoading(false);
-      });
-  }, []);
-
-  const recurring = useMemo(
-    () => detectRecurring(txns, customMerchants),
-    [txns, customMerchants],
-  );
-
   const active = useMemo(
-    () => recurring.filter((r) => !excluded.has(r.key)),
-    [recurring, excluded],
+    () => candidates.filter((c) => !c.dismissed),
+    [candidates],
   );
-
   const dismissed = useMemo(
-    () => recurring.filter((r) => excluded.has(r.key)),
-    [recurring, excluded],
+    () => candidates.filter((c) => c.dismissed),
+    [candidates],
   );
 
   const displayed = useMemo(() => {
     let r =
       filter === "subscriptions"
-        ? active.filter((x) => x.isSubscription)
+        ? active.filter((x) => x.subscription)
         : active;
     if (search) {
       const q = search.toLowerCase();
@@ -176,13 +188,15 @@ export default function RecurringTransactions() {
           x.category?.toLowerCase().includes(q),
       );
     }
-    return [...r].sort((a, b) =>
-      sortBy === "frequency"
-        ? b.distinctMonths - a.distinctMonths
-        : sortBy === "avg"
-          ? b.avg - a.avg
-          : b.total - a.total,
-    );
+    return [...r].sort((a, b) => {
+      if (sortBy === "monthly")
+        return (b.monthlyEquivalent || 0) - (a.monthlyEquivalent || 0);
+      if (sortBy === "next")
+        return (a.nextPredictedDate || "").localeCompare(
+          b.nextPredictedDate || "",
+        );
+      return (b.confidence || 0) - (a.confidence || 0);
+    });
   }, [active, search, sortBy, filter]);
 
   if (loading)
@@ -204,12 +218,17 @@ export default function RecurringTransactions() {
         alignItems="center"
         minHeight={300}
       >
-        <Typography color="error">Failed to load transactions.</Typography>
+        <Typography color="error">
+          Failed to load recurring detections.
+        </Typography>
       </Box>
     );
 
-  const totalRecurring = active.reduce((s, r) => s + r.total, 0);
-  const subCount = active.filter((r) => r.isSubscription).length;
+  const monthlyRecurring = active.reduce(
+    (s, r) => s + (Number(r.monthlyEquivalent) || 0),
+    0,
+  );
+  const subCount = active.filter((r) => r.subscription).length;
 
   return (
     <Box sx={{ p: 3 }}>
@@ -220,20 +239,20 @@ export default function RecurringTransactions() {
         mb={1}
       >
         <Typography variant="h5" fontWeight={600}>
-          Recurring Transactions
+          Recurring &amp; Subscriptions
         </Typography>
         <LoopIcon sx={{ fontSize: 36, color: "primary.main", opacity: 0.5 }} />
       </Box>
       <Typography variant="body2" color="text.secondary" mb={3}>
-        Merchants with a regular payment cadence (monthly, quarterly, annual) ·{" "}
-        {subCount} likely subscriptions
+        Detected server-side from your full history
+        {engine ? ` · ${engine} engine` : ""} · {subCount} likely subscriptions
       </Typography>
 
       <Box display="flex" gap={2} mb={3}>
         {[
           {
-            label: "Total Recurring Spend",
-            value: `$${totalRecurring.toLocaleString("en-US", { maximumFractionDigits: 0 })}`,
+            label: "Monthly Recurring",
+            value: `$${monthlyRecurring.toLocaleString("en-US", { maximumFractionDigits: 0 })}`,
           },
           { label: "Recurring Merchants", value: active.length },
           { label: "Likely Subscriptions", value: subCount },
@@ -279,9 +298,9 @@ export default function RecurringTransactions() {
           value={sortBy}
           onChange={(_, v) => v && setSortBy(v)}
         >
-          <ToggleButton value="total">Total</ToggleButton>
-          <ToggleButton value="frequency">Frequency</ToggleButton>
-          <ToggleButton value="avg">Avg amount</ToggleButton>
+          <ToggleButton value="confidence">Confidence</ToggleButton>
+          <ToggleButton value="monthly">Monthly cost</ToggleButton>
+          <ToggleButton value="next">Next charge</ToggleButton>
         </ToggleButtonGroup>
       </Box>
 
@@ -295,17 +314,17 @@ export default function RecurringTransactions() {
               <TableCell>
                 <strong>Category</strong>
               </TableCell>
-              <TableCell align="right">
-                <strong>Avg</strong>
+              <TableCell>
+                <strong>Cadence</strong>
               </TableCell>
               <TableCell align="right">
-                <strong>Total paid</strong>
-              </TableCell>
-              <TableCell align="center">
-                <strong>Months active</strong>
+                <strong>Expected</strong>
               </TableCell>
               <TableCell>
-                <strong>Last seen</strong>
+                <strong>Next charge</strong>
+              </TableCell>
+              <TableCell align="center">
+                <strong>Confidence</strong>
               </TableCell>
               <TableCell align="center">
                 <strong>Type</strong>
@@ -315,7 +334,7 @@ export default function RecurringTransactions() {
           </TableHead>
           <TableBody>
             {displayed.map((r) => (
-              <MerchantRow key={r.key} r={r} onDismiss={exclude} />
+              <MerchantRow key={r.key} r={r} onDismiss={dismiss} />
             ))}
             {displayed.length === 0 && (
               <TableRow>
@@ -355,7 +374,7 @@ export default function RecurringTransactions() {
                       <strong>Category</strong>
                     </TableCell>
                     <TableCell align="right">
-                      <strong>Avg</strong>
+                      <strong>Expected</strong>
                     </TableCell>
                     <TableCell />
                   </TableRow>
@@ -378,7 +397,9 @@ export default function RecurringTransactions() {
                           }}
                         />
                       </TableCell>
-                      <TableCell align="right">${r.avg.toFixed(2)}</TableCell>
+                      <TableCell align="right">
+                        {fmtMoney(r.expectedAmount)}
+                      </TableCell>
                       <TableCell align="right">
                         <Tooltip arrow title="Restore to active list">
                           <IconButton

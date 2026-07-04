@@ -38,7 +38,6 @@ import {
 import { useCategoryManagement } from "../../hooks/useCategoryManagement";
 import { NewCategoryDialog } from "../common/NewCategoryDialog";
 import { useCustomMerchants } from "../../services/useCustomMerchants";
-import { HARDCODED_PATTERN_COUNT } from "../../services/merchantKnowledge";
 
 export default function SettingsDialog({ open, onClose }) {
   const [categories, setCategories] = useState([]);
@@ -357,9 +356,9 @@ export default function SettingsDialog({ open, onClose }) {
               color="text.secondary"
               sx={{ display: "block", mb: 2 }}
             >
-              {HARDCODED_PATTERN_COUNT} built-in patterns already cover Netflix,
-              Spotify, Telstra, Origin Energy, daycare, rent, insurance, and
-              more.
+              Dozens of built-in patterns (maintained server-side) already cover
+              Netflix, Spotify, Telstra, Origin Energy, daycare, rent,
+              insurance, and more.
             </Typography>
 
             <Box
