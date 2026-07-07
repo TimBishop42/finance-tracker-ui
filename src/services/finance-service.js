@@ -278,6 +278,25 @@ export const getLatestFxRate = async () =>
 export const setFxRate = async (rate) =>
   asJson(await postJson(`${WEALTH}/fx-rates`, rate), "set FX rate");
 
+export const getOptionGrants = async () =>
+  asJson(await fetch(`${WEALTH}/option-grants`), "fetch option grants");
+
+export const addOptionGrant = async (grant) =>
+  asJson(await postJson(`${WEALTH}/option-grants`, grant), "add option grant");
+
+export const updateOptionGrant = async (id, patch) =>
+  asJson(
+    await putJson(`${WEALTH}/option-grants/${id}`, patch),
+    "update option grant",
+  );
+
+export const deleteOptionGrant = async (id) => {
+  const res = await fetch(`${WEALTH}/option-grants/${id}`, {
+    method: "DELETE",
+  });
+  if (!res.ok) throw new Error("Failed to delete option grant");
+};
+
 export const getNetWorthSnapshots = async () =>
   asJson(await fetch(`${WEALTH}/snapshots`), "fetch snapshots");
 

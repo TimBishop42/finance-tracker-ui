@@ -62,6 +62,8 @@ const moneyFmt = (ccy, digits) =>
   });
 const fmt = (n, ccy) => moneyFmt(ccy, 0).format(Number(n) || 0);
 const fmt2 = (n, ccy) => moneyFmt(ccy, 2).format(Number(n) || 0);
+const qtyFmt = (q) =>
+  (Number(q) || 0).toLocaleString(undefined, { maximumFractionDigits: 2 });
 const compact = (n) => {
   const v = Number(n) || 0;
   const a = Math.abs(v);
@@ -831,6 +833,242 @@ function SecurityDialog({ open, onClose, security, onSave }) {
   );
 }
 
+// --- Add option grant dialog ------------------------------------------------
+
+function OptionGrantDialog({ open, onClose, securities, grant, onSave }) {
+  const editing = !!grant;
+  const [grantType, setGrantType] = useState("OPTION");
+  const [securityId, setSecurityId] = useState("");
+  const [name, setName] = useState("");
+  const [strike, setStrike] = useState("");
+  const [quantity, setQuantity] = useState("");
+  const [multiplier, setMultiplier] = useState("1");
+  const [vestStartDate, setVestStartDate] = useState(todayIso());
+  const [vestIntervalMonths, setVestIntervalMonths] = useState("3");
+  const [vestTranches, setVestTranches] = useState("");
+  const [expiryDate, setExpiryDate] = useState("");
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  React.useEffect(() => {
+    if (!open) return;
+    if (grant) {
+      setGrantType(grant.grantType || "OPTION");
+      setSecurityId(String(grant.underlyingSecurityId));
+      setName(grant.name || "");
+      setStrike(grant.strike != null ? String(grant.strike) : "");
+      setQuantity(grant.quantity != null ? String(grant.quantity) : "");
+      setMultiplier(grant.multiplier != null ? String(grant.multiplier) : "1");
+      setVestStartDate(grant.vestStartDate || todayIso());
+      setVestIntervalMonths(String(grant.vestIntervalMonths ?? 3));
+      setVestTranches(String(grant.totalTranches ?? ""));
+      setExpiryDate(grant.expiryDate || "");
+      setNote(grant.note || "");
+    } else {
+      setGrantType("OPTION");
+      setSecurityId(securities.length ? String(securities[0].id) : "");
+      setName("");
+      setStrike("");
+      setQuantity("");
+      setMultiplier("1");
+      setVestStartDate(todayIso());
+      setVestIntervalMonths("3");
+      setVestTranches("");
+      setExpiryDate("");
+      setNote("");
+    }
+  }, [open, grant, securities]);
+
+  const isRsu = grantType === "RSU";
+
+  const save = async () => {
+    const s = isRsu ? 0 : Number(strike);
+    const q = Number(quantity);
+    const tr = Number(vestTranches);
+    if (
+      !securityId ||
+      !Number.isFinite(s) ||
+      s < 0 ||
+      !Number.isFinite(q) ||
+      q <= 0 ||
+      !vestStartDate ||
+      !Number.isFinite(tr) ||
+      tr <= 0
+    )
+      return;
+    setBusy(true);
+    try {
+      await onSave(grant ? grant.id : null, {
+        grantType,
+        underlyingSecurityId: Number(securityId),
+        name: name.trim() || undefined,
+        strike: s,
+        quantity: q,
+        multiplier: Number(multiplier) || 1,
+        vestStartDate,
+        vestIntervalMonths: Number(vestIntervalMonths) || 3,
+        vestTranches: tr,
+        expiryDate: isRsu ? undefined : expiryDate || undefined,
+        note: note.trim() || undefined,
+      });
+      onClose();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onClose={onClose} maxWidth="xs" fullWidth>
+      <DialogTitle>{editing ? "Edit grant" : "Add grant"}</DialogTitle>
+      <DialogContent>
+        {securities.length === 0 && !editing ? (
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+            Add the underlying security first (via “Add trade” → “Add new
+            security”), then create the grant so its live price can value it.
+          </Typography>
+        ) : (
+          <>
+            <ToggleButtonGroup
+              size="small"
+              exclusive
+              fullWidth
+              value={grantType}
+              onChange={(_, v) => v && setGrantType(v)}
+              sx={{ mt: 1, mb: 1 }}
+            >
+              <ToggleButton value="OPTION">Options (strike)</ToggleButton>
+              <ToggleButton value="RSU">RSU / equity</ToggleButton>
+            </ToggleButtonGroup>
+            <TextField
+              select
+              label="Underlying"
+              value={securityId}
+              onChange={(e) => setSecurityId(e.target.value)}
+              fullWidth
+              margin="dense"
+            >
+              {securities.map((s) => (
+                <MenuItem key={s.id} value={String(s.id)}>
+                  {s.ticker}
+                  {s.name ? ` — ${s.name}` : ""} ({s.currency})
+                </MenuItem>
+              ))}
+            </TextField>
+            <TextField
+              label="Grant name (optional)"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              fullWidth
+              margin="dense"
+            />
+            <Grid container spacing={1}>
+              {!isRsu && (
+                <Grid item xs={6}>
+                  <TextField
+                    label="Strike (per share)"
+                    type="number"
+                    value={strike}
+                    onChange={(e) => setStrike(e.target.value)}
+                    fullWidth
+                    margin="dense"
+                  />
+                </Grid>
+              )}
+              <Grid item xs={isRsu ? 6 : 6}>
+                <TextField
+                  label={isRsu ? "Units granted" : "Options granted"}
+                  type="number"
+                  value={quantity}
+                  onChange={(e) => setQuantity(e.target.value)}
+                  fullWidth
+                  margin="dense"
+                />
+              </Grid>
+              <Grid item xs={6}>
+                <TextField
+                  label={isRsu ? "Shares / unit" : "Shares / option"}
+                  type="number"
+                  value={multiplier}
+                  onChange={(e) => setMultiplier(e.target.value)}
+                  fullWidth
+                  margin="dense"
+                  helperText="1 for employee grants"
+                />
+              </Grid>
+              {!isRsu && (
+                <Grid item xs={6}>
+                  <TextField
+                    label="Expiry (optional)"
+                    type="date"
+                    InputLabelProps={{ shrink: true }}
+                    value={expiryDate}
+                    onChange={(e) => setExpiryDate(e.target.value)}
+                    fullWidth
+                    margin="dense"
+                  />
+                </Grid>
+              )}
+              <Grid item xs={12}>
+                <Typography variant="subtitle2" sx={{ mt: 1 }}>
+                  Vesting schedule
+                </Typography>
+              </Grid>
+              <Grid item xs={6}>
+                <TextField
+                  label="First vest date"
+                  type="date"
+                  InputLabelProps={{ shrink: true }}
+                  value={vestStartDate}
+                  onChange={(e) => setVestStartDate(e.target.value)}
+                  fullWidth
+                  margin="dense"
+                />
+              </Grid>
+              <Grid item xs={3}>
+                <TextField
+                  label="Every (mo)"
+                  type="number"
+                  value={vestIntervalMonths}
+                  onChange={(e) => setVestIntervalMonths(e.target.value)}
+                  fullWidth
+                  margin="dense"
+                />
+              </Grid>
+              <Grid item xs={3}>
+                <TextField
+                  label="Tranches"
+                  type="number"
+                  value={vestTranches}
+                  onChange={(e) => setVestTranches(e.target.value)}
+                  fullWidth
+                  margin="dense"
+                />
+              </Grid>
+            </Grid>
+            <TextField
+              label="Note (optional)"
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              fullWidth
+              margin="dense"
+            />
+          </>
+        )}
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onClose}>Cancel</Button>
+        <Button
+          variant="contained"
+          onClick={save}
+          disabled={busy || (securities.length === 0 && !editing)}
+        >
+          {editing ? "Save" : "Add grant"}
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+}
+
 // --- Main component ---------------------------------------------------------
 
 export default function WealthTracker() {
@@ -840,6 +1078,7 @@ export default function WealthTracker() {
   const [dialog, setDialog] = useState(null); // 'asset' | 'liability' | 'trade' | 'price' | 'fx' | 'split'
   const [editItem, setEditItem] = useState(null);
   const [editSecurity, setEditSecurity] = useState(null);
+  const [editOption, setEditOption] = useState(null);
   const [pricePreset, setPricePreset] = useState(null); // securityId to preselect in PriceDialog
   const [refreshing, setRefreshing] = useState(false);
   const [snack, setSnack] = useState(null);
@@ -963,6 +1202,7 @@ export default function WealthTracker() {
   );
 
   const holdings = summary?.holdings || [];
+  const options = summary?.options || [];
   const items = summary?.items || [];
   const liabilities = items.filter((i) => i.kind === "LIABILITY");
   const assetItems = items.filter((i) => i.kind !== "LIABILITY");
@@ -1353,6 +1593,112 @@ export default function WealthTracker() {
         )}
       </Paper>
 
+      {/* Equity comp / Options */}
+      <Paper sx={{ p: 2, mb: 2 }}>
+        <Box
+          sx={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            mb: 1,
+          }}
+        >
+          <Typography variant="h6">Equity comp / Options</Typography>
+          <Button
+            size="small"
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={() => setDialog("optionGrant")}
+          >
+            Add option grant
+          </Button>
+        </Box>
+        {options.length ? (
+          <>
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell>Grant</TableCell>
+                  <TableCell align="right">Strike</TableCell>
+                  <TableCell align="right">Vested / total</TableCell>
+                  <TableCell align="right">Underlying</TableCell>
+                  <TableCell align="right">Vested value</TableCell>
+                  <TableCell align="right">Unvested (memo)</TableCell>
+                  <TableCell>Next vest</TableCell>
+                  <TableCell align="right">Actions</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {options.map((o) => (
+                  <TableRow key={o.id}>
+                    <TableCell>
+                      <strong>{o.name}</strong>
+                      <Typography
+                        variant="caption"
+                        color="text.secondary"
+                        display="block"
+                      >
+                        {o.underlyingTicker} ·{" "}
+                        {o.grantType === "RSU" ? "RSU" : "Option"}
+                        {o.expired
+                          ? " · expired"
+                          : o.priceMissing
+                            ? " · no price"
+                            : ""}
+                      </Typography>
+                    </TableCell>
+                    <TableCell align="right">
+                      {o.grantType === "RSU" ? "—" : fmt2(o.strike, o.currency)}
+                    </TableCell>
+                    <TableCell align="right">
+                      {qtyFmt(o.vestedQuantity)} / {qtyFmt(o.quantity)}
+                    </TableCell>
+                    <TableCell align="right">
+                      {o.underlyingPrice != null
+                        ? fmt2(o.underlyingPrice, o.currency)
+                        : "—"}
+                    </TableCell>
+                    <TableCell align="right">
+                      {fmt(o.vestedValueDisplay, currency)}
+                    </TableCell>
+                    <TableCell align="right" style={{ color: "#888" }}>
+                      {fmt(o.unvestedValueDisplay, currency)}
+                    </TableCell>
+                    <TableCell>{o.nextVestDate || "fully vested"}</TableCell>
+                    <TableCell align="right">
+                      <IconButton size="small" onClick={() => setEditOption(o)}>
+                        <EditIcon fontSize="small" />
+                      </IconButton>
+                      <IconButton
+                        size="small"
+                        onClick={() => wealth.removeOptionGrant(o.id)}
+                      >
+                        <DeleteIcon fontSize="small" />
+                      </IconButton>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+            <Typography
+              variant="caption"
+              color="text.secondary"
+              sx={{ mt: 1, display: "block" }}
+            >
+              Valued at intrinsic value (max of 0 and price − strike). Only
+              vested value counts toward net worth; unvested total{" "}
+              {fmt(summary?.unvestedOptionsValue, currency)} is shown for
+              reference only.
+            </Typography>
+          </>
+        ) : (
+          <Typography variant="body2" color="text.secondary">
+            No option grants yet — “Add option grant” to track vesting and
+            intrinsic value automatically.
+          </Typography>
+        )}
+      </Paper>
+
       {/* Assets & liabilities */}
       <Paper sx={{ p: 2, mb: 2 }}>
         <Box
@@ -1562,6 +1908,20 @@ export default function WealthTracker() {
         onClose={() => setDialog(null)}
         onAddSecurity={wealth.addSecurity}
         onSaveTrade={wealth.addTrade}
+      />
+      <OptionGrantDialog
+        open={dialog === "optionGrant" || !!editOption}
+        securities={securities}
+        grant={editOption}
+        onClose={() => {
+          setDialog(null);
+          setEditOption(null);
+        }}
+        onSave={(id, payload) =>
+          id
+            ? wealth.updateOptionGrant(id, payload)
+            : wealth.addOptionGrant(payload)
+        }
       />
       <PriceDialog
         open={dialog === "price"}

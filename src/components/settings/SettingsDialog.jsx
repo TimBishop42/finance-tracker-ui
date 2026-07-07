@@ -38,6 +38,7 @@ import {
 import { useCategoryManagement } from "../../hooks/useCategoryManagement";
 import { NewCategoryDialog } from "../common/NewCategoryDialog";
 import { useCustomMerchants } from "../../services/useCustomMerchants";
+import { useNeutralMerchants } from "../../services/useNeutralMerchants";
 
 export default function SettingsDialog({ open, onClose }) {
   const [categories, setCategories] = useState([]);
@@ -61,6 +62,13 @@ export default function SettingsDialog({ open, onClose }) {
   } = useCustomMerchants();
   const [merchantPattern, setMerchantPattern] = useState("");
   const [merchantType, setMerchantType] = useState("subscription");
+
+  const {
+    neutralMerchants,
+    add: addNeutralMerchant,
+    remove: removeNeutralMerchant,
+  } = useNeutralMerchants();
+  const [neutralInput, setNeutralInput] = useState("");
 
   const {
     newCategoryDialogOpen,
@@ -437,6 +445,92 @@ export default function SettingsDialog({ open, onClose }) {
             ) : (
               <Typography variant="body2" color="text.secondary">
                 No custom rules yet.
+              </Typography>
+            )}
+          </AccordionDetails>
+        </Accordion>
+
+        <Accordion>
+          <AccordionSummary
+            expandIcon={<ExpandMoreIcon />}
+            aria-controls="neutral-rules-content"
+            id="neutral-rules-header"
+          >
+            <Typography>Neutral / Transfer Rules</Typography>
+          </AccordionSummary>
+          <AccordionDetails>
+            <Typography variant="body2" color="text.secondary" gutterBottom>
+              Merchants booked as <strong>neutral</strong> on CSV import —
+              internal transfers and credit-card payments. They are recorded but
+              excluded from spend and cashflow. Enter a merchant name (it is
+              normalised to match future imports of the same merchant).
+            </Typography>
+            <Typography
+              variant="caption"
+              color="text.secondary"
+              sx={{ display: "block", mb: 2 }}
+            >
+              Obvious transfers (e.g. &ldquo;payment - thank you&rdquo;,
+              &ldquo;transfer to/from&rdquo;) are auto-detected on import; add a
+              rule here for anything specific to you.
+            </Typography>
+
+            <Box
+              sx={{ display: "flex", gap: 1, alignItems: "flex-start", mb: 2 }}
+            >
+              <TextField
+                size="small"
+                label="Merchant name"
+                value={neutralInput}
+                onChange={(e) => setNeutralInput(e.target.value)}
+                onKeyPress={(e) => {
+                  if (e.key === "Enter" && neutralInput.trim()) {
+                    addNeutralMerchant(neutralInput);
+                    setNeutralInput("");
+                  }
+                }}
+                sx={{ flex: 1 }}
+              />
+              <Button
+                variant="contained"
+                size="small"
+                disabled={!neutralInput.trim()}
+                onClick={() => {
+                  addNeutralMerchant(neutralInput);
+                  setNeutralInput("");
+                }}
+                sx={{ alignSelf: "center", mt: 0.5 }}
+              >
+                Add
+              </Button>
+            </Box>
+
+            {neutralMerchants.length > 0 ? (
+              <List dense disablePadding>
+                {neutralMerchants.map((key) => (
+                  <ListItem key={key} disablePadding sx={{ py: 0.5 }}>
+                    <ListItemText
+                      primary={key}
+                      primaryTypographyProps={{
+                        variant: "body2",
+                        fontFamily: "monospace",
+                      }}
+                    />
+                    <ListItemSecondaryAction>
+                      <IconButton
+                        edge="end"
+                        size="small"
+                        onClick={() => removeNeutralMerchant(key)}
+                      >
+                        <DeleteIcon fontSize="small" />
+                      </IconButton>
+                    </ListItemSecondaryAction>
+                  </ListItem>
+                ))}
+              </List>
+            ) : (
+              <Typography variant="body2" color="text.secondary">
+                No neutral rules yet.
               </Typography>
             )}
           </AccordionDetails>

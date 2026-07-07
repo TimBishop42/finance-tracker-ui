@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import { ThemeProvider, createTheme } from "@mui/material/styles";
 import CssBaseline from "@mui/material/CssBaseline";
@@ -15,8 +15,26 @@ import SalaryTracker from "./components/salary/SalaryTracker";
 import WealthTracker from "./components/wealth/WealthTracker";
 import { CategoriesProvider } from "./context/CategoriesContext";
 
+const THEME_STORAGE_KEY = "themeMode";
+
 function App() {
-  const [mode, setMode] = useState("light");
+  // Restore the saved theme so dark/light survives a reload.
+  const [mode, setMode] = useState(() => {
+    try {
+      const saved = localStorage.getItem(THEME_STORAGE_KEY);
+      return saved === "dark" || saved === "light" ? saved : "light";
+    } catch (e) {
+      return "light";
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(THEME_STORAGE_KEY, mode);
+    } catch (e) {
+      /* ignore unavailable storage */
+    }
+  }, [mode]);
 
   const theme = useMemo(
     () =>

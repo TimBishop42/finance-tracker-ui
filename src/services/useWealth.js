@@ -17,6 +17,9 @@ import {
   setFxRate,
   runNetWorthSnapshot,
   refreshPrices,
+  addOptionGrant,
+  updateOptionGrant,
+  deleteOptionGrant,
 } from "./finance-service";
 
 // Loads the Total Wealth view for a display currency plus the raw securities and
@@ -86,5 +89,8 @@ export function useWealth(currency = "AUD") {
     setFx: wrap(setFxRate),
     runSnapshot: wrap(runNetWorthSnapshot),
     refreshPrices: wrap(refreshPrices),
+    addOptionGrant: wrap(addOptionGrant),
+    updateOptionGrant: wrap(updateOptionGrant),
+    removeOptionGrant: wrap(deleteOptionGrant),
   };
 }

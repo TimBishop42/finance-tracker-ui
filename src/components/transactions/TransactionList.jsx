@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from "react";
 import {
   Paper,
   Table,
@@ -22,17 +22,34 @@ import {
   MenuItem,
   FormControl,
   InputLabel,
-} from '@mui/material';
-import { Delete as DeleteIcon } from '@mui/icons-material';
-import RestClient from '../../rest/CategoryClient';
+} from "@mui/material";
+import { Delete as DeleteIcon } from "@mui/icons-material";
+import RestClient from "../../rest/CategoryClient";
+
+// Format the epoch timestamp to a readable AU date (falls back to the raw
+// string if the timestamp is missing). Fixes the raw-date-string part of UI-N12.
+const formatTransactionDate = (transaction) => {
+  const ms = Number(transaction.transactionDateTime);
+  if (Number.isFinite(ms) && ms > 0) {
+    return new Date(ms).toLocaleDateString("en-AU", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    });
+  }
+  return transaction.transactionDate || "—";
+};
 
 export default function TransactionList() {
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [recentMonthOnly, setRecentMonthOnly] = useState(true);
-  const [deleteDialog, setDeleteDialog] = useState({ open: false, transactionId: null });
-  const [selectedCategory, setSelectedCategory] = useState('all');
+  const [deleteDialog, setDeleteDialog] = useState({
+    open: false,
+    transactionId: null,
+  });
+  const [selectedCategory, setSelectedCategory] = useState("all");
 
   useEffect(() => {
     fetchTransactions();
@@ -40,11 +57,13 @@ export default function TransactionList() {
 
   const fetchTransactions = async () => {
     try {
-      const response = await RestClient.get(`/finance/find-all-transactions?recentMonth=${recentMonthOnly}`);
+      const response = await RestClient.get(
+        `/finance/find-all-transactions?recentMonth=${recentMonthOnly}`,
+      );
       setTransactions(response.data);
       setLoading(false);
     } catch (err) {
-      console.error('Error fetching transactions:', err);
+      console.error("Error fetching transactions:", err);
       setError(err);
       setLoading(false);
     }
@@ -61,13 +80,16 @@ export default function TransactionList() {
   const handleDeleteConfirm = async () => {
     try {
       const payload = JSON.stringify({
-        transactionId: deleteDialog.transactionId
+        transactionId: deleteDialog.transactionId,
       });
-      const response = await RestClient.post('/finance/delete-transaction', payload);
+      const response = await RestClient.post(
+        "/finance/delete-transaction",
+        payload,
+      );
       setDeleteDialog({ open: false, transactionId: null });
       fetchTransactions(); // Refresh the list
     } catch (err) {
-      console.error('Error deleting transaction:', err);
+      console.error("Error deleting transaction:", err);
       // You might want to show an error message to the user here
     }
   };
@@ -80,14 +102,24 @@ export default function TransactionList() {
     setSelectedCategory(event.target.value);
   };
 
-  const filteredTransactions = transactions
-    .filter(transaction => selectedCategory === 'all' || transaction.category === selectedCategory);
+  const filteredTransactions = transactions.filter(
+    (transaction) =>
+      selectedCategory === "all" || transaction.category === selectedCategory,
+  );
 
-  const categories = ['all', ...new Set(transactions.map(t => t.category))].sort();
+  const categories = [
+    "all",
+    ...new Set(transactions.map((t) => t.category)),
+  ].sort();
 
   if (loading) {
     return (
-      <Box display="flex" justifyContent="center" alignItems="center" minHeight="200px">
+      <Box
+        display="flex"
+        justifyContent="center"
+        alignItems="center"
+        minHeight="200px"
+      >
         <CircularProgress />
       </Box>
     );
@@ -95,18 +127,28 @@ export default function TransactionList() {
 
   if (error) {
     return (
-      <Box display="flex" justifyContent="center" alignItems="center" minHeight="200px">
-        <Typography color="error">Error loading transactions. Please try again later.</Typography>
+      <Box
+        display="flex"
+        justifyContent="center"
+        alignItems="center"
+        minHeight="200px"
+      >
+        <Typography color="error">
+          Error loading transactions. Please try again later.
+        </Typography>
       </Box>
     );
   }
 
   return (
     <Paper elevation={3} sx={{ p: 3, mt: 4 }}>
-      <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-        <Typography variant="h5">
-          Recent Transactions
-        </Typography>
+      <Box
+        display="flex"
+        justifyContent="space-between"
+        alignItems="center"
+        mb={2}
+      >
+        <Typography variant="h5">Recent Transactions</Typography>
         <Box display="flex" alignItems="center" gap={2}>
           <FormControl size="small" sx={{ minWidth: 120 }}>
             <InputLabel>Category</InputLabel>
@@ -115,9 +157,9 @@ export default function TransactionList() {
               onChange={handleCategoryChange}
               label="Category"
             >
-              {categories.map(category => (
+              {categories.map((category) => (
                 <MenuItem key={category} value={category}>
-                  {category === 'all' ? 'All Categories' : category}
+                  {category === "all" ? "All Categories" : category}
                 </MenuItem>
               ))}
             </Select>
@@ -139,6 +181,7 @@ export default function TransactionList() {
           <TableHead>
             <TableRow>
               <TableCell>Date</TableCell>
+              <TableCell>Merchant</TableCell>
               <TableCell>Category</TableCell>
               <TableCell align="right">Amount</TableCell>
               <TableCell>Comments</TableCell>
@@ -149,15 +192,14 @@ export default function TransactionList() {
           <TableBody>
             {filteredTransactions.map((transaction) => (
               <TableRow key={transaction.transactionId}>
-                <TableCell>
-                  {transaction.transactionDate}
-                </TableCell>
+                <TableCell>{formatTransactionDate(transaction)}</TableCell>
+                <TableCell>{transaction.businessName || "—"}</TableCell>
                 <TableCell>{transaction.category}</TableCell>
                 <TableCell align="right">
                   ${parseFloat(transaction.amount).toFixed(2)}
                 </TableCell>
                 <TableCell>{transaction.comment}</TableCell>
-                <TableCell>{transaction.essential ? 'Yes' : 'No'}</TableCell>
+                <TableCell>{transaction.essential ? "Yes" : "No"}</TableCell>
                 <TableCell align="center">
                   <IconButton
                     color="error"
@@ -173,25 +215,27 @@ export default function TransactionList() {
         </Table>
       </TableContainer>
 
-      <Dialog
-        open={deleteDialog.open}
-        onClose={handleDeleteCancel}
-      >
+      <Dialog open={deleteDialog.open} onClose={handleDeleteCancel}>
         <DialogTitle>Confirm Delete</DialogTitle>
         <DialogContent>
           <Typography>
-            Are you sure you want to delete this transaction? This action cannot be undone.
+            Are you sure you want to delete this transaction? This action cannot
+            be undone.
           </Typography>
         </DialogContent>
         <DialogActions>
           <Button onClick={handleDeleteCancel} color="primary">
             Cancel
           </Button>
-          <Button onClick={handleDeleteConfirm} color="error" variant="contained">
+          <Button
+            onClick={handleDeleteConfirm}
+            color="error"
+            variant="contained"
+          >
             Delete
           </Button>
         </DialogActions>
       </Dialog>
     </Paper>
   );
-} 
+}
