@@ -1625,6 +1625,7 @@ export default function WealthTracker() {
                   <TableCell align="right">Vested value</TableCell>
                   <TableCell align="right">Unvested (memo)</TableCell>
                   <TableCell>Next vest</TableCell>
+                  <TableCell align="right">Next vest amount</TableCell>
                   <TableCell align="right">Actions</TableCell>
                 </TableRow>
               </TableHead>
@@ -1665,6 +1666,11 @@ export default function WealthTracker() {
                       {fmt(o.unvestedValueDisplay, currency)}
                     </TableCell>
                     <TableCell>{o.nextVestDate || "fully vested"}</TableCell>
+                    <TableCell align="right">
+                      {o.nextVestDate
+                        ? fmt(o.nextVestValueDisplay, currency)
+                        : "—"}
+                    </TableCell>
                     <TableCell align="right">
                       <IconButton size="small" onClick={() => setEditOption(o)}>
                         <EditIcon fontSize="small" />

@@ -38,6 +38,7 @@ import {
   getSummaryMonths,
   getCumulativeSpend,
   getMaxSpendValue,
+  MAX_SPEND_VALUE_UPDATED_EVENT,
 } from "../../services/finance-service";
 
 const MONTH_NAMES = [
@@ -692,20 +693,16 @@ export default function Dashboard() {
   }, [selectedMonth, selectedYear, loading]);
 
   useEffect(() => {
-    if (!loading && !cumulativeData)
-      fetchCumulativeData(selectedMonth, selectedYear);
-  }, [loading]);
-
-  useEffect(() => {
-    const interval = setInterval(async () => {
-      try {
-        const maxSpend = await getMaxSpendValue();
-        setTargetSpend(maxSpend);
-      } catch (err) {
-        console.error("Error polling target spend:", err);
-      }
-    }, 5000);
-    return () => clearInterval(interval);
+    const handleMaxSpendUpdated = (event) => setTargetSpend(event.detail);
+    window.addEventListener(
+      MAX_SPEND_VALUE_UPDATED_EVENT,
+      handleMaxSpendUpdated,
+    );
+    return () =>
+      window.removeEventListener(
+        MAX_SPEND_VALUE_UPDATED_EVENT,
+        handleMaxSpendUpdated,
+      );
   }, []);
 
   if (error) {

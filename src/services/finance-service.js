@@ -108,6 +108,10 @@ export const getMaxSpendValue = async () => {
   }
 };
 
+// Dispatched on window whenever the max spend value is saved, so components
+// showing it (e.g. Dashboard) can stay in sync without polling.
+export const MAX_SPEND_VALUE_UPDATED_EVENT = "maxSpendValueUpdated";
+
 export const setMaxSpendValue = async (value) => {
   try {
     const response = await fetch("/api/finance/set-max-spend-value", {
@@ -120,6 +124,9 @@ export const setMaxSpendValue = async (value) => {
     if (!response.ok) {
       throw new Error("Failed to set max spend value");
     }
+    window.dispatchEvent(
+      new CustomEvent(MAX_SPEND_VALUE_UPDATED_EVENT, { detail: value }),
+    );
   } catch (error) {
     console.error("Error setting max spend value:", error);
     throw error;
