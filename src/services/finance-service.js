@@ -222,6 +222,17 @@ export const getWealthSummary = async (currency = "AUD") =>
     "fetch wealth summary",
   );
 
+export const getKidsWealthSummary = async (currency = "AUD") =>
+  asJson(
+    await fetch(
+      `${WEALTH}/kids/summary?currency=${encodeURIComponent(currency)}`,
+    ),
+    "fetch kids wealth summary",
+  );
+
+export const runKidsWealthSnapshot = async () =>
+  asJson(await postJson(`${WEALTH}/kids/snapshot`, {}), "run kids snapshot");
+
 export const getWealthItems = async () =>
   asJson(await fetch(`${WEALTH}/items`), "fetch wealth items");
 
@@ -242,8 +253,13 @@ export const getSecurities = async () =>
 export const addSecurity = async (sec) =>
   asJson(await postJson(`${WEALTH}/securities`, sec), "add security");
 
-export const getTrades = async () =>
-  asJson(await fetch(`${WEALTH}/trades`), "fetch trades");
+export const getTrades = async (owner) =>
+  asJson(
+    await fetch(
+      `${WEALTH}/trades${owner ? `?owner=${encodeURIComponent(owner)}` : ""}`,
+    ),
+    "fetch trades",
+  );
 
 export const addTrade = async (trade) =>
   asJson(await postJson(`${WEALTH}/trades`, trade), "add trade");

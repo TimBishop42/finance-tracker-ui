@@ -4,8 +4,6 @@ import {
   Paper,
   Grid,
   Typography,
-  Card,
-  CardContent,
   Button,
   Alert,
   IconButton,
@@ -51,28 +49,12 @@ import {
 } from "recharts";
 import { useWealth } from "../../services/useWealth";
 import { quoteSecurity } from "../../services/finance-service";
+import { fmt, fmt2, qtyFmt, todayIso, pct, compact } from "./wealthFormat";
+import Kpi from "./Kpi";
+import TradeDialog from "./TradeDialog";
 
 // --- formatting + constants -------------------------------------------------
 
-const moneyFmt = (ccy, digits) =>
-  new Intl.NumberFormat(ccy === "USD" ? "en-US" : "en-AU", {
-    style: "currency",
-    currency: ccy || "AUD",
-    maximumFractionDigits: digits,
-  });
-const fmt = (n, ccy) => moneyFmt(ccy, 0).format(Number(n) || 0);
-const fmt2 = (n, ccy) => moneyFmt(ccy, 2).format(Number(n) || 0);
-const qtyFmt = (q) =>
-  (Number(q) || 0).toLocaleString(undefined, { maximumFractionDigits: 2 });
-const compact = (n) => {
-  const v = Number(n) || 0;
-  const a = Math.abs(v);
-  if (a >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M`;
-  if (a >= 1_000) return `${Math.round(v / 1_000)}k`;
-  return `${Math.round(v)}`;
-};
-const todayIso = () => new Date().toISOString().slice(0, 10);
-const pct = (n) => (n == null ? "—" : `${n >= 0 ? "+" : ""}${n.toFixed(1)}%`);
 const fmtRatio = (r) => {
   const v = Number(r);
   if (!Number.isFinite(v) || v <= 0) return "—";
@@ -100,28 +82,6 @@ const classLabel = (c) => CLASS_LABELS[c] || c;
 // Asset classes the user can add as plain wealth items (SHARES is derived from trades).
 const ASSET_CLASS_OPTIONS = ["CASH", "SUPER", "PROPERTY", "OTHER_ASSET"];
 const CURRENCIES = ["AUD", "USD"];
-
-// --- KPI card ---------------------------------------------------------------
-
-function Kpi({ title, value, sub, color }) {
-  return (
-    <Card variant="outlined" sx={{ height: "100%" }}>
-      <CardContent>
-        <Typography variant="overline" color="text.secondary">
-          {title}
-        </Typography>
-        <Typography variant="h5" sx={{ color, fontWeight: 600 }}>
-          {value}
-        </Typography>
-        {sub && (
-          <Typography variant="body2" color="text.secondary">
-            {sub}
-          </Typography>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
 
 // --- Add / edit item dialog -------------------------------------------------
 
@@ -234,232 +194,6 @@ function ItemDialog({ open, onClose, onSave, kind, initial }) {
         <Button onClick={onClose}>Cancel</Button>
         <Button onClick={save} variant="contained">
           Save
-        </Button>
-      </DialogActions>
-    </Dialog>
-  );
-}
-
-// --- Add trade dialog (pick or create a security) ---------------------------
-
-function TradeDialog({
-  open,
-  onClose,
-  securities,
-  onAddSecurity,
-  onSaveTrade,
-}) {
-  const NEW = "__new__";
-  const [securityId, setSecurityId] = useState("");
-  const [ticker, setTicker] = useState("");
-  const [exchange, setExchange] = useState("ASX");
-  const [secCurrency, setSecCurrency] = useState("AUD");
-  const [secName, setSecName] = useState("");
-  const [side, setSide] = useState("BUY");
-  const [quantity, setQuantity] = useState("");
-  const [price, setPrice] = useState("");
-  const [fee, setFee] = useState("");
-  const [tradeDate, setTradeDate] = useState(todayIso());
-  const [note, setNote] = useState("");
-  const [busy, setBusy] = useState(false);
-
-  React.useEffect(() => {
-    if (open) {
-      setSecurityId(securities.length ? String(securities[0].id) : NEW);
-      setTicker("");
-      setExchange("ASX");
-      setSecCurrency("AUD");
-      setSecName("");
-      setSide("BUY");
-      setQuantity("");
-      setPrice("");
-      setFee("");
-      setTradeDate(todayIso());
-      setNote("");
-    }
-  }, [open, securities]);
-
-  const addingNew = securityId === NEW || securities.length === 0;
-
-  const save = async () => {
-    const q = Number(quantity);
-    const p = Number(price);
-    if (
-      !Number.isFinite(q) ||
-      q <= 0 ||
-      !Number.isFinite(p) ||
-      p <= 0 ||
-      !tradeDate
-    )
-      return;
-    if (addingNew && !ticker.trim()) return;
-    setBusy(true);
-    try {
-      let secId = securityId;
-      if (addingNew) {
-        const sec = await onAddSecurity({
-          ticker: ticker.trim(),
-          exchange: exchange.trim(),
-          currency: secCurrency,
-          name: secName.trim(),
-        });
-        secId = sec.id;
-      }
-      await onSaveTrade({
-        securityId: Number(secId),
-        side,
-        quantity: q,
-        price: p,
-        fee: Number(fee) || 0,
-        tradeDate,
-        note: note.trim(),
-      });
-      onClose();
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <Dialog open={open} onClose={onClose} maxWidth="xs" fullWidth>
-      <DialogTitle>Add trade</DialogTitle>
-      <DialogContent>
-        <TextField
-          select
-          label="Security"
-          value={securityId}
-          onChange={(e) => setSecurityId(e.target.value)}
-          fullWidth
-          margin="dense"
-        >
-          {securities.map((s) => (
-            <MenuItem key={s.id} value={String(s.id)}>
-              {s.ticker}
-              {s.name ? ` — ${s.name}` : ""} ({s.currency})
-            </MenuItem>
-          ))}
-          <MenuItem value={NEW}>+ Add new security…</MenuItem>
-        </TextField>
-
-        {addingNew && (
-          <Box
-            sx={{
-              pl: 1,
-              borderLeft: "2px solid",
-              borderColor: "divider",
-              mt: 1,
-            }}
-          >
-            <TextField
-              label="Ticker (e.g. CBA.AX, AAPL)"
-              value={ticker}
-              onChange={(e) => setTicker(e.target.value)}
-              fullWidth
-              margin="dense"
-            />
-            <Grid container spacing={1}>
-              <Grid item xs={6}>
-                <TextField
-                  label="Exchange"
-                  value={exchange}
-                  onChange={(e) => setExchange(e.target.value)}
-                  fullWidth
-                  margin="dense"
-                />
-              </Grid>
-              <Grid item xs={6}>
-                <TextField
-                  select
-                  label="Currency"
-                  value={secCurrency}
-                  onChange={(e) => setSecCurrency(e.target.value)}
-                  fullWidth
-                  margin="dense"
-                >
-                  {CURRENCIES.map((c) => (
-                    <MenuItem key={c} value={c}>
-                      {c}
-                    </MenuItem>
-                  ))}
-                </TextField>
-              </Grid>
-            </Grid>
-            <TextField
-              label="Name (optional)"
-              value={secName}
-              onChange={(e) => setSecName(e.target.value)}
-              fullWidth
-              margin="dense"
-            />
-          </Box>
-        )}
-
-        <ToggleButtonGroup
-          size="small"
-          exclusive
-          value={side}
-          onChange={(_, v) => v && setSide(v)}
-          sx={{ mt: 1, mb: 1 }}
-        >
-          <ToggleButton value="BUY">Buy</ToggleButton>
-          <ToggleButton value="SELL">Sell</ToggleButton>
-        </ToggleButtonGroup>
-
-        <Grid container spacing={1}>
-          <Grid item xs={6}>
-            <TextField
-              label="Quantity"
-              value={quantity}
-              onChange={(e) => setQuantity(e.target.value)}
-              fullWidth
-              margin="dense"
-              type="number"
-            />
-          </Grid>
-          <Grid item xs={6}>
-            <TextField
-              label="Price / unit"
-              value={price}
-              onChange={(e) => setPrice(e.target.value)}
-              fullWidth
-              margin="dense"
-              type="number"
-            />
-          </Grid>
-          <Grid item xs={6}>
-            <TextField
-              label="Fee"
-              value={fee}
-              onChange={(e) => setFee(e.target.value)}
-              fullWidth
-              margin="dense"
-              type="number"
-            />
-          </Grid>
-          <Grid item xs={6}>
-            <TextField
-              label="Trade date"
-              value={tradeDate}
-              onChange={(e) => setTradeDate(e.target.value)}
-              fullWidth
-              margin="dense"
-              type="date"
-              InputLabelProps={{ shrink: true }}
-            />
-          </Grid>
-        </Grid>
-        <TextField
-          label="Note (optional)"
-          value={note}
-          onChange={(e) => setNote(e.target.value)}
-          fullWidth
-          margin="dense"
-        />
-      </DialogContent>
-      <DialogActions>
-        <Button onClick={onClose}>Cancel</Button>
-        <Button onClick={save} variant="contained" disabled={busy}>
-          Add trade
         </Button>
       </DialogActions>
     </Dialog>

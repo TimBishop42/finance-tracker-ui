@@ -30,6 +30,7 @@ import {
   Savings as SavingsIcon,
   Payments as PaymentsIcon,
   AccountBalanceWallet as AccountBalanceWalletIcon,
+  ChildCare as ChildCareIcon,
 } from "@mui/icons-material";
 import { useNavigate, useLocation } from "react-router-dom";
 import SettingsDialog from "../settings/SettingsDialog";
@@ -91,6 +92,7 @@ const menuItems = [
   { text: "Super Forecast", icon: <SavingsIcon />, path: "/super" },
   { text: "Salary & Pay", icon: <PaymentsIcon />, path: "/salary" },
   { text: "Total Wealth", icon: <AccountBalanceWalletIcon />, path: "/wealth" },
+  { text: "Kids' Portfolios", icon: <ChildCareIcon />, path: "/kids-wealth" },
 ];
 
 export default function Layout({ children, onToggleColorMode, mode }) {

@@ -13,6 +13,7 @@ import BillCalendar from "./components/dashboard/BillCalendar";
 import SuperTracker from "./components/super/SuperTracker";
 import SalaryTracker from "./components/salary/SalaryTracker";
 import WealthTracker from "./components/wealth/WealthTracker";
+import KidsWealthTracker from "./components/wealth/KidsWealthTracker";
 import { CategoriesProvider } from "./context/CategoriesContext";
 
 const THEME_STORAGE_KEY = "themeMode";
@@ -73,6 +74,7 @@ function App() {
               <Route path="/super" element={<SuperTracker />} />
               <Route path="/salary" element={<SalaryTracker />} />
               <Route path="/wealth" element={<WealthTracker />} />
+              <Route path="/kids-wealth" element={<KidsWealthTracker />} />
               <Route path="*" element={<Dashboard />} />
             </Routes>
           </Layout>
