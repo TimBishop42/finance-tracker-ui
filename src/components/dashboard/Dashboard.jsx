@@ -179,6 +179,50 @@ function VsLastMonthCard({
   );
 }
 
+// ─── Income Card ──────────────────────────────────────────────────────────────
+function IncomeCard({ currentIncome, priorIncome, loading, isCurrentMonth }) {
+  const delta = currentIncome - priorIncome;
+  const isUp = delta > 0;
+
+  return (
+    <Card variant="outlined" sx={{ height: "100%" }}>
+      <CardContent>
+        <Typography variant="overline" color="text.secondary">
+          Income
+        </Typography>
+        {loading ? (
+          <Box sx={{ mt: 2 }}>
+            <CircularProgress size={24} />
+          </Box>
+        ) : (
+          <>
+            <Typography
+              variant="h4"
+              fontWeight={700}
+              color="success.main"
+              sx={{ my: 0.5 }}
+            >
+              {fmt(currentIncome)}
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+              {isCurrentMonth ? "this month so far" : "full month"}
+            </Typography>
+            {priorIncome > 0 && (
+              <Typography
+                variant="body2"
+                color={isUp ? "success.main" : "error.main"}
+                fontWeight={600}
+              >
+                {isUp ? "▲" : "▼"} {fmt(Math.abs(delta))} vs prior month
+              </Typography>
+            )}
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 // ─── Top Category Card ────────────────────────────────────────────────────────
 function TopCategoryCard({ categoryValues, totalSpend, loading }) {
   const top = useMemo(() => {
@@ -622,6 +666,10 @@ export default function Dashboard() {
   const prevMonthTotal =
     findSummary(prevMonth, prevMonthYear)?.totalMonthlySpend || 0;
 
+  const selectedMonthIncome = selectedMonthSummary?.totalMonthlyIncome || 0;
+  const prevMonthIncome =
+    findSummary(prevMonth, prevMonthYear)?.totalMonthlyIncome || 0;
+
   const fetchCumulativeData = async (month, year) => {
     try {
       setChartLoading(true);
@@ -826,7 +874,7 @@ export default function Dashboard() {
 
       {/* Summary cards */}
       <Grid container spacing={3} sx={{ mb: 3 }}>
-        <Grid item xs={12} md={4}>
+        <Grid item xs={12} sm={6} md={3}>
           <BudgetCard
             currentSpend={selectedMonthSpend}
             targetSpend={targetSpend}
@@ -838,7 +886,7 @@ export default function Dashboard() {
             }
           />
         </Grid>
-        <Grid item xs={12} md={4}>
+        <Grid item xs={12} sm={6} md={3}>
           <VsLastMonthCard
             currentSpend={selectedMonthSpend}
             lastMonthTotal={prevMonthTotal}
@@ -848,7 +896,15 @@ export default function Dashboard() {
             isCurrentMonth={isCurrentMonth}
           />
         </Grid>
-        <Grid item xs={12} md={4}>
+        <Grid item xs={12} sm={6} md={3}>
+          <IncomeCard
+            currentIncome={selectedMonthIncome}
+            priorIncome={prevMonthIncome}
+            loading={loading}
+            isCurrentMonth={isCurrentMonth}
+          />
+        </Grid>
+        <Grid item xs={12} sm={6} md={3}>
           <TopCategoryCard
             categoryValues={selectedMonthSummary?.categoryValues}
             totalSpend={selectedMonthSpend}

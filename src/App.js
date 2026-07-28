@@ -8,8 +8,8 @@ import TransactionForm from "./components/transactions/TransactionForm";
 import TransactionUploader from "./components/transactions/TransactionUploader";
 import AggregateData from "./components/dashboard/AggregateData";
 import SpendingHeatmap from "./components/dashboard/SpendingHeatmap";
-import RecurringTransactions from "./components/dashboard/RecurringTransactions";
-import BillCalendar from "./components/dashboard/BillCalendar";
+import SubscriptionDashboard from "./components/subscriptions/SubscriptionDashboard";
+import Bills from "./components/subscriptions/Bills";
 import SuperTracker from "./components/super/SuperTracker";
 import SalaryTracker from "./components/salary/SalaryTracker";
 import WealthTracker from "./components/wealth/WealthTracker";
@@ -69,8 +69,14 @@ function App() {
               <Route path="/bulk-upload" element={<TransactionUploader />} />
               <Route path="/summary" element={<AggregateData />} />
               <Route path="/heatmap" element={<SpendingHeatmap />} />
-              <Route path="/recurring" element={<RecurringTransactions />} />
-              <Route path="/calendar" element={<BillCalendar />} />
+              <Route
+                path="/subscriptions"
+                element={<SubscriptionDashboard />}
+              />
+              <Route path="/bills" element={<Bills />} />
+              {/* Legacy paths → merged Bills tab */}
+              <Route path="/calendar" element={<Bills />} />
+              <Route path="/recurring" element={<Bills />} />
               <Route path="/super" element={<SuperTracker />} />
               <Route path="/salary" element={<SalaryTracker />} />
               <Route path="/wealth" element={<WealthTracker />} />

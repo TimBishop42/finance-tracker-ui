@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import {
   Box,
   Typography,
@@ -13,13 +13,27 @@ import {
   TableCell,
   Paper,
   CircularProgress,
+  Button,
+  Tooltip,
 } from "@mui/material";
 import {
   ChevronLeft as ChevronLeftIcon,
   ChevronRight as ChevronRightIcon,
   CalendarToday as CalendarTodayIcon,
+  Delete as DeleteIcon,
+  Add as AddIcon,
+  Edit as EditIcon,
+  CheckCircle as CheckCircleIcon,
+  RadioButtonUnchecked as UncheckedIcon,
+  BookmarkAdd as TrackIcon,
+  Link as LinkIcon,
 } from "@mui/icons-material";
 import { useRecurring } from "../../services/useRecurring";
+import { useSubscriptions } from "../../services/useSubscriptions";
+import SubscriptionDialog from "./SubscriptionDialog";
+import LinkTransactionsDialog from "./LinkTransactionsDialog";
+import BrandLogo from "./BrandLogo";
+import RestClient from "../../rest/CategoryClient";
 
 const CAT_COLORS = {
   Bills: "#ef5350",
@@ -39,23 +53,24 @@ const STATUS_COLORS = {
   Overdue: { bg: "#b71c1c", text: "#fff" },
 };
 
-// Abbreviate a merchant name to fit in a calendar chip
 function abbrev(name, maxLen = 10) {
   if (name.length <= maxLen) return name;
   return name.slice(0, maxLen - 1) + "…";
 }
 
-// ─── calendar helpers ─────────────────────────────────────────────────────────
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+const GRACE_DAYS_BEFORE = 5;
+const GRACE_DAYS_AFTER = 3;
+function daysBetween(from, to) {
+  return Math.round((to.getTime() - from.getTime()) / MS_PER_DAY);
+}
 
-// Returns array of 6 weeks × 7 days for the given year/month (0-indexed month)
 function buildCalendarGrid(year, month) {
   const firstDay = new Date(year, month, 1);
-  // Monday-first: 0=Mon … 6=Sun
   const startDow = (firstDay.getDay() + 6) % 7;
   const daysInMonth = new Date(year, month + 1, 0).getDate();
-
   const cells = [];
-  let day = 1 - startDow; // may be negative (prev-month padding)
+  let day = 1 - startDow;
   for (let week = 0; week < 6; week++) {
     const row = [];
     for (let dow = 0; dow < 7; dow++) {
@@ -84,10 +99,6 @@ const MONTH_NAMES = [
 ];
 const DOW_HEADERS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
-// ─── component ────────────────────────────────────────────────────────────────
-
-// Day-of-month a bill falls on: the detector's predictedDay, else the day of
-// the predicted next charge (covers non-monthly bills that have no predictedDay).
 function billDayOfMonth(bill) {
   if (bill.predictedDay != null) return bill.predictedDay;
   if (bill.nextPredictedDate) {
@@ -96,47 +107,99 @@ function billDayOfMonth(bill) {
   return 1;
 }
 
-export default function BillCalendar() {
+export default function Bills() {
   const { candidates, loading, error } = useRecurring();
+  const { subscriptions, add, update, remove, confirm, setPaid, setLinks } =
+    useSubscriptions();
 
-  const today = new Date();
+  // Stable "now" for the render cycle so it doesn't churn the memos below.
+  const today = useMemo(() => new Date(), []);
   const [displayYear, setDisplayYear] = useState(today.getFullYear());
   const [displayMonth, setDisplayMonth] = useState(today.getMonth());
 
-  const monthlyBills = useMemo(
-    () => candidates.filter((c) => c.bill && !c.dismissed),
-    [candidates],
-  );
+  const [categories, setCategories] = useState([]);
+  useEffect(() => {
+    RestClient.get("/finance/get-categories")
+      .then((r) => setCategories(r.data || []))
+      .catch((e) => console.error("Failed to load categories", e));
+  }, []);
 
-  // Determine status for each bill in the currently displayed month
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editTarget, setEditTarget] = useState(null);
+  const [linkTarget, setLinkTarget] = useState(null);
+
+  const openAdd = () => {
+    setEditTarget(null);
+    setDialogOpen(true);
+  };
+  const openEdit = (bill) => {
+    setEditTarget(bill);
+    setDialogOpen(true);
+  };
+  const handleSave = (body) =>
+    editTarget && editTarget.subscriptionId
+      ? update(editTarget.subscriptionId, body)
+      : add(body);
+  const handleDelete = (bill) => {
+    if (!bill.subscriptionId) return;
+    remove(bill.subscriptionId).catch((e) => console.error("Delete failed", e));
+  };
+  const handleTrack = (bill) =>
+    confirm(bill)
+      .then((created) => {
+        if (created) {
+          setEditTarget(created);
+          setDialogOpen(true);
+        }
+      })
+      .catch((e) => console.error("Track failed", e));
+  const handleTogglePaid = (bill) => {
+    if (!bill.subscriptionId) return;
+    const day = billDayOfMonth(bill);
+    const iso = `${displayYear}-${String(displayMonth + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+    setPaid(bill.subscriptionId, iso, bill.status !== "Paid").catch((e) =>
+      console.error("Toggle paid failed", e),
+    );
+  };
+  const handleSaveLinks = (transactionIds) =>
+    setLinks(linkTarget.subscriptionId, transactionIds);
+
+  // Persisted bills (manual + confirmed detections) + detected-but-not-tracked bills, deduped by key.
+  const monthlyBills = useMemo(() => {
+    const persisted = subscriptions.filter(
+      (s) => s.kind === "bill" && s.status !== "cancelled",
+    );
+    const persistedKeys = new Set(persisted.map((s) => s.key));
+    const detected = candidates.filter(
+      (c) => c.bill && !c.dismissed && !persistedKeys.has(c.key),
+    );
+    return [...persisted, ...detected];
+  }, [subscriptions, candidates]);
+
   const billsWithStatus = useMemo(() => {
     const isCurrentMonth =
       displayYear === today.getFullYear() && displayMonth === today.getMonth();
     return monthlyBills
       .map((bill) => {
         const day = billDayOfMonth(bill);
+        const dueDate = new Date(displayYear, displayMonth, day);
         const paidThisMonth = (bill.chargeDates || []).some((iso) => {
           const d = new Date(iso + "T00:00:00");
-          return (
-            d.getFullYear() === displayYear && d.getMonth() === displayMonth
-          );
+          const sameCalendarMonth =
+            d.getFullYear() === displayYear && d.getMonth() === displayMonth;
+          if (sameCalendarMonth) return true;
+          const diff = daysBetween(d, dueDate);
+          return diff <= GRACE_DAYS_BEFORE && diff >= -GRACE_DAYS_AFTER;
         });
-
         let status;
-        if (paidThisMonth) {
-          status = "Paid";
-        } else if (isCurrentMonth && day < today.getDate()) {
-          status = "Overdue";
-        } else {
-          status = "Upcoming";
-        }
-
+        if (paidThisMonth) status = "Paid";
+        else if (isCurrentMonth && day < today.getDate()) status = "Overdue";
+        else status = "Upcoming";
         return { ...bill, day, status };
       })
       .sort((a, b) => a.day - b.day);
   }, [monthlyBills, displayYear, displayMonth, today]);
 
-  // Summary stats
   const totalBills = billsWithStatus.length;
   const totalAmount = billsWithStatus.reduce(
     (s, b) => s + (Number(b.expectedAmount) || 0),
@@ -144,13 +207,11 @@ export default function BillCalendar() {
   );
   const paidCount = billsWithStatus.filter((b) => b.status === "Paid").length;
 
-  // Calendar grid
   const grid = useMemo(
     () => buildCalendarGrid(displayYear, displayMonth),
     [displayYear, displayMonth],
   );
 
-  // Map day → bills for quick calendar lookup
   const billsByDay = useMemo(() => {
     const map = {};
     billsWithStatus.forEach((bill) => {
@@ -199,7 +260,6 @@ export default function BillCalendar() {
 
   return (
     <Box sx={{ p: 3 }}>
-      {/* Page header */}
       <Box
         display="flex"
         justifyContent="space-between"
@@ -207,17 +267,27 @@ export default function BillCalendar() {
         mb={1}
       >
         <Typography variant="h5" fontWeight={600}>
-          Bill Calendar
+          Bills
         </Typography>
-        <CalendarTodayIcon
-          sx={{ fontSize: 36, color: "primary.main", opacity: 0.5 }}
-        />
+        <Box display="flex" alignItems="center" gap={1}>
+          <Button
+            variant="contained"
+            size="small"
+            startIcon={<AddIcon />}
+            onClick={openAdd}
+          >
+            Add Bill
+          </Button>
+          <CalendarTodayIcon
+            sx={{ fontSize: 36, color: "primary.main", opacity: 0.5 }}
+          />
+        </Box>
       </Box>
       <Typography variant="body2" color="text.secondary" mb={3}>
-        Predicted upcoming bill payments based on recurring transaction history
+        Recurring bills — detected and manual, in one place. Payments auto-match
+        to mark them paid; link transactions or edit to correct anything.
       </Typography>
 
-      {/* Summary stat cards */}
       <Box display="flex" gap={2} mb={3}>
         {[
           { label: "Total Bills This Month", value: totalBills },
@@ -240,7 +310,6 @@ export default function BillCalendar() {
 
       {/* Calendar */}
       <Paper elevation={2} sx={{ mb: 3, overflow: "hidden" }}>
-        {/* Month navigation */}
         <Box
           display="flex"
           alignItems="center"
@@ -260,7 +329,6 @@ export default function BillCalendar() {
           </IconButton>
         </Box>
 
-        {/* Day-of-week headers */}
         <Box
           display="grid"
           gridTemplateColumns="repeat(7, 1fr)"
@@ -283,7 +351,6 @@ export default function BillCalendar() {
           ))}
         </Box>
 
-        {/* Calendar rows */}
         {grid.map((week, wi) => (
           <Box
             key={wi}
@@ -301,7 +368,6 @@ export default function BillCalendar() {
                 displayMonth === today.getMonth() &&
                 day === today.getDate();
               const dayBills = day ? billsByDay[day] || [] : [];
-
               return (
                 <Box
                   key={di}
@@ -319,7 +385,6 @@ export default function BillCalendar() {
                 >
                   {day !== null && (
                     <>
-                      {/* Day number */}
                       <Box
                         sx={{
                           display: "flex",
@@ -349,7 +414,6 @@ export default function BillCalendar() {
                           </Typography>
                         </Box>
                       </Box>
-                      {/* Bill chips */}
                       <Box display="flex" flexDirection="column" gap={0.25}>
                         {dayBills.map((bill) => (
                           <Chip
@@ -376,7 +440,6 @@ export default function BillCalendar() {
         ))}
       </Paper>
 
-      {/* Legend */}
       <Box display="flex" gap={1.5} mb={3} alignItems="center">
         <Typography variant="caption" color="text.secondary" fontWeight={600}>
           Status:
@@ -391,7 +454,6 @@ export default function BillCalendar() {
         ))}
       </Box>
 
-      {/* Bill list */}
       <Typography variant="h6" fontWeight={600} mb={1.5}>
         Bills — {MONTH_NAMES[displayMonth]} {displayYear}
       </Typography>
@@ -406,23 +468,25 @@ export default function BillCalendar() {
                 <strong>Category</strong>
               </TableCell>
               <TableCell align="right">
-                <strong>Predicted Amount</strong>
+                <strong>Amount</strong>
               </TableCell>
               <TableCell align="center">
-                <strong>Predicted Day</strong>
+                <strong>Due Day</strong>
               </TableCell>
               <TableCell align="center">
                 <strong>Status</strong>
+              </TableCell>
+              <TableCell align="center">
+                <strong>Actions</strong>
               </TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
             {billsWithStatus.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} align="center">
+                <TableCell colSpan={6} align="center">
                   <Typography color="text.secondary" sx={{ py: 3 }}>
-                    No monthly bills detected. Need transactions from 3+
-                    distinct months per merchant.
+                    No bills yet. Add one above, or track a detected recurring.
                   </Typography>
                 </TableCell>
               </TableRow>
@@ -430,9 +494,21 @@ export default function BillCalendar() {
               billsWithStatus.map((bill) => (
                 <TableRow key={bill.key} hover>
                   <TableCell>
-                    <Typography variant="body2" fontWeight={500}>
-                      {bill.name}
-                    </Typography>
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                      <BrandLogo sub={bill} size={28} />
+                      <Box>
+                        <Typography variant="body2" fontWeight={500}>
+                          {bill.name}
+                        </Typography>
+                        {!bill.subscriptionId && (
+                          <Typography variant="caption" color="text.secondary">
+                            {bill.suggestion
+                              ? "suggested · not tracked"
+                              : "detected · not tracked"}
+                          </Typography>
+                        )}
+                      </Box>
+                    </Box>
                   </TableCell>
                   <TableCell>
                     <Chip
@@ -447,15 +523,13 @@ export default function BillCalendar() {
                   </TableCell>
                   <TableCell align="right">
                     <Typography variant="body2" fontWeight={500}>
-                      $
-                      {(Number(bill.expectedAmount) || 0).toLocaleString(
-                        "en-US",
-                        {
-                          minimumFractionDigits: 2,
-                          maximumFractionDigits: 2,
-                        },
-                      )}
+                      {fmtAmount(bill.expectedAmount)}
                     </Typography>
+                    {bill.amountVariable && (
+                      <Typography variant="caption" color="warning.main">
+                        variable
+                      </Typography>
+                    )}
                   </TableCell>
                   <TableCell align="center">
                     <Typography variant="body2">
@@ -474,12 +548,102 @@ export default function BillCalendar() {
                       }}
                     />
                   </TableCell>
+                  <TableCell align="center">
+                    {bill.subscriptionId ? (
+                      <>
+                        <Tooltip
+                          title={
+                            bill.status === "Paid"
+                              ? "Mark unpaid this month"
+                              : "Mark paid this month"
+                          }
+                        >
+                          <IconButton
+                            size="small"
+                            onClick={() => handleTogglePaid(bill)}
+                          >
+                            {bill.status === "Paid" ? (
+                              <CheckCircleIcon
+                                fontSize="small"
+                                color="success"
+                              />
+                            ) : (
+                              <UncheckedIcon fontSize="small" />
+                            )}
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title="Link transactions">
+                          <IconButton
+                            size="small"
+                            onClick={() => setLinkTarget(bill)}
+                          >
+                            <LinkIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title="Edit">
+                          <IconButton
+                            size="small"
+                            onClick={() => openEdit(bill)}
+                          >
+                            <EditIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title="Delete this bill">
+                          <IconButton
+                            size="small"
+                            onClick={() => handleDelete(bill)}
+                            sx={{
+                              color: "text.disabled",
+                              "&:hover": { color: "error.main" },
+                            }}
+                          >
+                            <DeleteIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
+                      </>
+                    ) : (
+                      <Tooltip title="Track this detected bill (persist + auto-match payments)">
+                        <IconButton
+                          size="small"
+                          color="primary"
+                          onClick={() => handleTrack(bill)}
+                        >
+                          <TrackIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                    )}
+                  </TableCell>
                 </TableRow>
               ))
             )}
           </TableBody>
         </Table>
       </Paper>
+
+      <SubscriptionDialog
+        open={dialogOpen}
+        onClose={() => setDialogOpen(false)}
+        onSave={handleSave}
+        initial={editTarget}
+        defaultKind="bill"
+        categories={categories}
+      />
+      <LinkTransactionsDialog
+        open={!!linkTarget}
+        onClose={() => setLinkTarget(null)}
+        sub={linkTarget}
+        onSave={handleSaveLinks}
+      />
     </Box>
+  );
+}
+
+function fmtAmount(n) {
+  return (
+    "$" +
+    (Number(n) || 0).toLocaleString("en-US", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })
   );
 }
