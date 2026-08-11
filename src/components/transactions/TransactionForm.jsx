@@ -21,7 +21,6 @@ import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
 import RestClient from "../../rest/CategoryClient";
 import DuplicateReviewModal from "./DuplicateReviewModal";
-import TransactionList from "./TransactionList";
 
 export default function TransactionForm({ onTransactionAdded }) {
   const [formData, setFormData] = useState({
@@ -321,8 +320,6 @@ export default function TransactionForm({ onTransactionAdded }) {
           onConfirm={handleDuplicateConfirm}
         />
       </Paper>
-
-      <TransactionList />
     </>
   );
 }

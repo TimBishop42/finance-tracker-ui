@@ -16,9 +16,19 @@ import {
   TableContainer,
   TableHead,
   TableRow,
+  TableSortLabel,
+  Tooltip as MuiTooltip,
+  Drawer,
+  Divider,
+  IconButton,
 } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
 import { Slider } from "@mui/material";
+import {
+  Close as CloseIcon,
+  ExpandLess,
+  ExpandMore,
+} from "@mui/icons-material";
 import {
   BarChart,
   Bar,
@@ -32,6 +42,46 @@ import {
 } from "recharts";
 import RestClient from "../../rest/CategoryClient";
 import { getMaxSpendValue } from "../../services/finance-service";
+import { useTransactions } from "../../services/useTransactions";
+import TransactionTable from "../transactions/TransactionTable";
+import TransactionEditDialog from "../transactions/TransactionEditDialog";
+
+const MONTHS_UPPER = [
+  "JANUARY",
+  "FEBRUARY",
+  "MARCH",
+  "APRIL",
+  "MAY",
+  "JUNE",
+  "JULY",
+  "AUGUST",
+  "SEPTEMBER",
+  "OCTOBER",
+  "NOVEMBER",
+  "DECEMBER",
+];
+const MONTHS_SHORT = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
+];
+
+// 1-based month number for a DisplayMonth, from its category values' enum name or `month`.
+function monthNumberOf(m) {
+  const raw = m?.categoryValues?.[0]?.month ?? m?.month;
+  if (typeof raw === "number") return raw;
+  const idx = MONTHS_UPPER.indexOf(String(raw).toUpperCase());
+  return idx >= 0 ? idx + 1 : null;
+}
 
 const fmt = (n) =>
   "$" +
@@ -59,16 +109,181 @@ const CHART_COLORS = [
 
 const TOP_N = 6;
 
-const monthOrder = (monthStr) => {
-  const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
-  const [mon, year] = (monthStr || "").split(" ");
-  return parseInt(year || 0) * 12 + (months.indexOf(mon) ?? 0);
+// Chronological key for a DisplayMonth; the API's `month` field is a bare
+// enum name ("JULY"), not a "Jul 2026"-style string.
+const monthKey = (m) => (m?.year ?? 0) * 12 + (monthNumberOf(m) ?? 0);
+
+// "Jul 25" — compact column label with the year, since the API month has none.
+const monthLabel = (m) => {
+  const num = monthNumberOf(m);
+  const mon = num ? MONTHS_SHORT[num - 1] : m?.month;
+  return m?.year ? `${mon} ${String(m.year).slice(-2)}` : mon;
 };
+
+const getCatValue = (monthData, category) => {
+  const found = (monthData.categoryValues || []).find(
+    (c) => c.category === category,
+  );
+  return found ? found.value : 0;
+};
+
+// Sequential blue ramp for the breakdown table. Light mode reuses the
+// SpendingHeatmap ramp; dark mode is its own ramp where low values recede
+// into the dark surface instead of glowing lighter than it.
+const HEAT_FILLS = {
+  light: ["#c6e5ff", "#79b8ff", "#1976d2", "#0d47a1"],
+  dark: ["#0d2b52", "#0d47a1", "#1565c0", "#1976d2"],
+};
+// Ink per bin — every pairing holds ≥ 4.5:1 text contrast on its fill.
+const HEAT_INKS = {
+  light: ["rgba(0, 0, 0, 0.87)", "rgba(0, 0, 0, 0.87)", "#fff", "#fff"],
+  dark: ["#fff", "#fff", "#fff", "#fff"],
+};
+
+// Categories under this share of total spend collapse into the "Other" row.
+const SMALL_CAT_SHARE = 0.02;
+
+const applySort = (rows, sortKey, sortDir) => {
+  const dir = sortDir === "asc" ? 1 : -1;
+  const valueOf = (row) => {
+    if (sortKey === "total") return row.total;
+    if (sortKey === "delta") return row.delta ?? -Infinity;
+    if (sortKey.startsWith("m:")) return row.values[Number(sortKey.slice(2))];
+    return 0;
+  };
+  return [...rows].sort((a, b) =>
+    sortKey === "category"
+      ? dir * a.category.localeCompare(b.category)
+      : dir * (valueOf(a) - valueOf(b)),
+  );
+};
+
+function HeatCell({ value, bin, mode, tooltip, onClick }) {
+  if (!(value > 0)) {
+    return (
+      <TableCell align="right">
+        <Typography variant="body2" color="text.disabled">
+          —
+        </Typography>
+      </TableCell>
+    );
+  }
+  return (
+    <MuiTooltip title={tooltip} arrow>
+      <TableCell
+        align="right"
+        onClick={onClick}
+        sx={{
+          bgcolor: HEAT_FILLS[mode][bin],
+          color: HEAT_INKS[mode][bin],
+          fontVariantNumeric: "tabular-nums",
+          whiteSpace: "nowrap",
+          border: "1px solid",
+          borderColor: "background.paper",
+          ...(onClick && {
+            cursor: "pointer",
+            "&:hover": {
+              outline: "2px solid currentColor",
+              outlineOffset: -2,
+            },
+          }),
+        }}
+      >
+        {fmt(value)}
+      </TableCell>
+    </MuiTooltip>
+  );
+}
+
+function DeltaCell({ delta }) {
+  if (delta === null || delta === 0) {
+    return (
+      <TableCell align="right">
+        <Typography variant="body2" color="text.disabled">
+          {delta === 0 ? "±$0" : "—"}
+        </Typography>
+      </TableCell>
+    );
+  }
+  const up = delta > 0;
+  return (
+    <TableCell
+      align="right"
+      sx={{
+        color: up ? "error.main" : "success.main",
+        fontWeight: 600,
+        fontVariantNumeric: "tabular-nums",
+        whiteSpace: "nowrap",
+      }}
+    >
+      {up ? "↑" : "↓"}
+      {fmt(Math.abs(delta))}
+    </TableCell>
+  );
+}
 
 function MonthlyTab({ maxSpendValue }) {
   const theme = useTheme();
   const [aggregateData, setAggregateData] = useState([]);
   const [monthRange, setMonthRange] = useState(6);
+
+  // Drill-down: click a category × month cell → transactions for that slice.
+  const { transactions, update, remove, recategoriseMerchant } =
+    useTransactions();
+  const [categories, setCategories] = useState([]);
+  const [drill, setDrill] = useState(null); // { category, monthNum, year, label }
+  const [editTarget, setEditTarget] = useState(null);
+
+  // Breakdown table: sort order and "Other" (small categories) expansion.
+  const [sortKey, setSortKey] = useState("total"); // 'category' | 'total' | 'delta' | 'm:<idx>'
+  const [sortDir, setSortDir] = useState("desc");
+  const [otherOpen, setOtherOpen] = useState(false);
+
+  useEffect(() => {
+    RestClient.get("/finance/get-categories")
+      .then((r) => setCategories(r.data || []))
+      .catch((e) => console.error("Failed to load categories", e));
+  }, []);
+
+  const openDrill = (category, monthData) => {
+    const monthNum = monthNumberOf(monthData);
+    if (!monthNum || !monthData.year) return;
+    setDrill({
+      category,
+      monthNum,
+      year: monthData.year,
+      label: `${MONTHS_SHORT[monthNum - 1]} ${monthData.year}`,
+    });
+  };
+
+  const drillTransactions = useMemo(() => {
+    if (!drill) return [];
+    return transactions
+      .filter((t) => {
+        if (t.category !== drill.category) return false;
+        const ms = Number(t.transactionDateTime);
+        if (!Number.isFinite(ms)) return false;
+        const d = new Date(ms);
+        return (
+          d.getFullYear() === drill.year && d.getMonth() + 1 === drill.monthNum
+        );
+      })
+      .sort(
+        (a, b) => (b.transactionDateTime || 0) - (a.transactionDateTime || 0),
+      );
+  }, [drill, transactions]);
+
+  const drillTopMerchants = useMemo(() => {
+    const totals = {};
+    drillTransactions.forEach((t) => {
+      const k = t.businessName || "(no merchant)";
+      totals[k] = (totals[k] || 0) + (Number(t.amount) || 0);
+    });
+    return Object.entries(totals)
+      .map(([merchant, value]) => ({ merchant, value }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 8);
+  }, [drillTransactions]);
 
   useEffect(() => {
     RestClient.get(`/finance/get-summary-months?months=${monthRange}`).then(
@@ -83,13 +298,6 @@ function MonthlyTab({ maxSpendValue }) {
     );
     return [...cats].sort();
   }, [aggregateData]);
-
-  const getCatValue = (monthData, category) => {
-    const found = (monthData.categoryValues || []).find(
-      (c) => c.category === category,
-    );
-    return found ? found.value : 0;
-  };
 
   const topCategories = useMemo(() => {
     const totals = {};
@@ -106,12 +314,14 @@ function MonthlyTab({ maxSpendValue }) {
 
   const stackedChartData = useMemo(() => {
     return [...aggregateData]
-      .sort((a, b) => monthOrder(a.month) - monthOrder(b.month))
+      .sort((a, b) => monthKey(a) - monthKey(b))
       .map((m) => {
         const obj = { month: m.month };
         let topTotal = 0;
         topCategories.forEach((cat) => {
-          const found = (m.categoryValues || []).find((c) => c.category === cat);
+          const found = (m.categoryValues || []).find(
+            (c) => c.category === cat,
+          );
           obj[cat] = found ? found.value : 0;
           topTotal += obj[cat];
         });
@@ -120,6 +330,141 @@ function MonthlyTab({ maxSpendValue }) {
         return obj;
       });
   }, [aggregateData, topCategories]);
+
+  // ---- Category breakdown table ----
+  const monthsAsc = useMemo(
+    () => [...aggregateData].sort((a, b) => monthKey(a) - monthKey(b)),
+    [aggregateData],
+  );
+  const showDelta = monthsAsc.length >= 2;
+
+  const grandTotal = useMemo(
+    () => monthsAsc.reduce((s, m) => s + (m.totalMonthlySpend || 0), 0),
+    [monthsAsc],
+  );
+
+  const categoryRows = useMemo(() => {
+    return allCategories.map((category) => {
+      const values = monthsAsc.map((m) => getCatValue(m, category));
+      const total = values.reduce((s, v) => s + v, 0);
+      const avg = monthsAsc.length ? total / monthsAsc.length : 0;
+      const nonZero = values.filter((v) => v > 0);
+      const max = nonZero.length ? Math.max(...nonZero) : 0;
+      const min = nonZero.length ? Math.min(...nonZero) : 0;
+      // Shade relative to the category's own range. Rows whose spread is
+      // under 15% of their max read as uniform rather than exaggerating
+      // trivial differences into full-range shading.
+      const uniform = max <= 0 || (max - min) / max < 0.15;
+      const bins = values.map((v) => {
+        if (v <= 0) return -1;
+        if (uniform) return 0;
+        return Math.min(3, Math.floor(((v - min) / (max - min)) * 4));
+      });
+      const n = values.length;
+      const delta = n >= 2 ? values[n - 1] - values[n - 2] : null;
+      return { category, values, bins, total, avg, delta };
+    });
+  }, [allCategories, monthsAsc]);
+
+  const { mainRows, smallRows, otherRow } = useMemo(() => {
+    const small = categoryRows.filter(
+      (r) => grandTotal > 0 && r.total < grandTotal * SMALL_CAT_SHARE,
+    );
+    if (small.length < 2)
+      return { mainRows: categoryRows, smallRows: [], otherRow: null };
+    const smallSet = new Set(small);
+    const values = monthsAsc.map((_, i) =>
+      small.reduce((s, r) => s + r.values[i], 0),
+    );
+    const total = values.reduce((s, v) => s + v, 0);
+    const n = values.length;
+    return {
+      mainRows: categoryRows.filter((r) => !smallSet.has(r)),
+      smallRows: small,
+      otherRow: {
+        count: small.length,
+        values,
+        total,
+        avg: n ? total / n : 0,
+        delta: n >= 2 ? values[n - 1] - values[n - 2] : null,
+      },
+    };
+  }, [categoryRows, grandTotal, monthsAsc]);
+
+  const sortedMain = useMemo(
+    () => applySort(mainRows, sortKey, sortDir),
+    [mainRows, sortKey, sortDir],
+  );
+  const sortedSmall = useMemo(
+    () => applySort(smallRows, sortKey, sortDir),
+    [smallRows, sortKey, sortDir],
+  );
+
+  const handleSort = (key) => {
+    if (sortKey === key) {
+      setSortDir(sortDir === "asc" ? "desc" : "asc");
+    } else {
+      setSortKey(key);
+      setSortDir(key === "category" ? "asc" : "desc");
+    }
+  };
+
+  const cellTooltip = (row, mi) => {
+    const m = monthsAsc[mi];
+    const pct =
+      m.totalMonthlySpend > 0
+        ? Math.round((row.values[mi] / m.totalMonthlySpend) * 100)
+        : 0;
+    return `${row.category} — ${monthLabel(m)} · ${pct}% of month · avg ${fmt(row.avg)}/mo`;
+  };
+
+  const mode = theme.palette.mode;
+
+  const renderCategoryRow = (row, indent = false) => (
+    <TableRow key={row.category} hover>
+      <TableCell
+        sx={{
+          fontWeight: 500,
+          position: "sticky",
+          left: 0,
+          zIndex: 1,
+          bgcolor: "background.paper",
+          pl: indent ? 4 : 2,
+        }}
+      >
+        {row.category}
+      </TableCell>
+      <TableCell
+        align="right"
+        sx={{ fontWeight: 700, fontVariantNumeric: "tabular-nums" }}
+      >
+        {fmt(row.total)}
+      </TableCell>
+      <TableCell
+        align="right"
+        sx={{
+          color: "text.secondary",
+          fontVariantNumeric: "tabular-nums",
+          borderRight: `1px solid ${theme.palette.divider}`,
+        }}
+      >
+        {fmt(row.avg)}
+      </TableCell>
+      {row.values.map((val, mi) => (
+        <HeatCell
+          key={monthKey(monthsAsc[mi])}
+          value={val}
+          bin={row.bins[mi]}
+          mode={mode}
+          tooltip={cellTooltip(row, mi)}
+          onClick={
+            val > 0 ? () => openDrill(row.category, monthsAsc[mi]) : undefined
+          }
+        />
+      ))}
+      {showDelta && <DeltaCell delta={row.delta} />}
+    </TableRow>
+  );
 
   return (
     <Box>
@@ -154,20 +499,20 @@ function MonthlyTab({ maxSpendValue }) {
           },
         }}
       >
-        {aggregateData.map((item, index) => {
+        {monthsAsc.map((item, index) => {
           const pct = Math.min(
             100,
             Math.round((item.totalMonthlySpend / maxSpendValue) * 100),
           );
           const color = budgetColor(pct);
-          const prevItem = aggregateData[index + 1];
+          const prevItem = monthsAsc[index - 1];
           const delta = prevItem
             ? item.totalMonthlySpend - prevItem.totalMonthlySpend
             : null;
 
           return (
             <Card
-              key={item.month}
+              key={monthKey(item)}
               variant="outlined"
               sx={{ minWidth: 175, flexShrink: 0 }}
             >
@@ -255,9 +600,7 @@ function MonthlyTab({ maxSpendValue }) {
                   }}
                   cursor={{ fill: theme.palette.action.hover }}
                 />
-                <Legend
-                  wrapperStyle={{ fontSize: 12, paddingTop: 12 }}
-                />
+                <Legend wrapperStyle={{ fontSize: 12, paddingTop: 12 }} />
                 <ReferenceLine
                   y={maxSpendValue}
                   stroke={theme.palette.error.main}
@@ -275,7 +618,12 @@ function MonthlyTab({ maxSpendValue }) {
                     dataKey={cat}
                     stackId="stack"
                     fill={CHART_COLORS[i % CHART_COLORS.length]}
-                    radius={i === topCategories.length - 1 && allCategories.length <= TOP_N ? [3, 3, 0, 0] : [0, 0, 0, 0]}
+                    radius={
+                      i === topCategories.length - 1 &&
+                      allCategories.length <= TOP_N
+                        ? [3, 3, 0, 0]
+                        : [0, 0, 0, 0]
+                    }
                   />
                 ))}
                 {allCategories.length > TOP_N && (
@@ -293,6 +641,34 @@ function MonthlyTab({ maxSpendValue }) {
       )}
 
       {/* Category breakdown table */}
+      <Box
+        sx={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          flexWrap: "wrap",
+          gap: 1,
+          mb: 1,
+        }}
+      >
+        <Typography variant="subtitle1" fontWeight={700}>
+          Category Breakdown
+        </Typography>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+          <Typography variant="caption" color="text.secondary">
+            Less
+          </Typography>
+          {HEAT_FILLS[mode].map((c) => (
+            <Box
+              key={c}
+              sx={{ width: 12, height: 12, borderRadius: 0.5, bgcolor: c }}
+            />
+          ))}
+          <Typography variant="caption" color="text.secondary">
+            More — shaded against each category's own range
+          </Typography>
+        </Box>
+      </Box>
       <TableContainer component={Paper} variant="outlined">
         <Table size="small" stickyHeader>
           <TableHead>
@@ -301,72 +677,282 @@ function MonthlyTab({ maxSpendValue }) {
                 sx={{
                   fontWeight: 700,
                   minWidth: 160,
+                  position: "sticky",
+                  left: 0,
+                  zIndex: 3,
                   bgcolor: theme.palette.background.paper,
                 }}
               >
-                Category
+                <TableSortLabel
+                  active={sortKey === "category"}
+                  direction={sortKey === "category" ? sortDir : "asc"}
+                  onClick={() => handleSort("category")}
+                >
+                  Category
+                </TableSortLabel>
               </TableCell>
-              {aggregateData.map((m) => (
+              <TableCell
+                align="right"
+                sx={{
+                  fontWeight: 700,
+                  whiteSpace: "nowrap",
+                  bgcolor: theme.palette.background.paper,
+                }}
+              >
+                <TableSortLabel
+                  active={sortKey === "total"}
+                  direction={sortKey === "total" ? sortDir : "desc"}
+                  onClick={() => handleSort("total")}
+                >
+                  Total
+                </TableSortLabel>
+              </TableCell>
+              <TableCell
+                align="right"
+                sx={{
+                  fontWeight: 700,
+                  whiteSpace: "nowrap",
+                  bgcolor: theme.palette.background.paper,
+                  borderRight: `1px solid ${theme.palette.divider}`,
+                }}
+              >
+                Avg/mo
+              </TableCell>
+              {monthsAsc.map((m, mi) => (
                 <TableCell
-                  key={m.month}
+                  key={monthKey(m)}
                   align="right"
                   sx={{
                     fontWeight: 700,
-                    bgcolor: theme.palette.background.paper,
                     whiteSpace: "nowrap",
+                    bgcolor: theme.palette.background.paper,
                   }}
                 >
-                  {m.month}
+                  <TableSortLabel
+                    active={sortKey === `m:${mi}`}
+                    direction={sortKey === `m:${mi}` ? sortDir : "desc"}
+                    onClick={() => handleSort(`m:${mi}`)}
+                  >
+                    {monthLabel(m)}
+                  </TableSortLabel>
                 </TableCell>
               ))}
+              {showDelta && (
+                <TableCell
+                  align="right"
+                  sx={{
+                    fontWeight: 700,
+                    whiteSpace: "nowrap",
+                    bgcolor: theme.palette.background.paper,
+                  }}
+                >
+                  <MuiTooltip title="Latest month vs the month before">
+                    <TableSortLabel
+                      active={sortKey === "delta"}
+                      direction={sortKey === "delta" ? sortDir : "desc"}
+                      onClick={() => handleSort("delta")}
+                    >
+                      MoM Δ
+                    </TableSortLabel>
+                  </MuiTooltip>
+                </TableCell>
+              )}
             </TableRow>
           </TableHead>
           <TableBody>
-            {allCategories.map((category, i) => (
-              <TableRow
-                key={category}
-                sx={{
-                  bgcolor: i % 2 === 0 ? "transparent" : "action.hover",
-                  "&:hover": { bgcolor: "action.selected" },
-                }}
-              >
-                <TableCell sx={{ fontWeight: 500 }}>{category}</TableCell>
-                {aggregateData.map((monthData) => {
-                  const val = getCatValue(monthData, category);
-                  return (
-                    <TableCell key={monthData.month} align="right">
-                      {val > 0 ? (
-                        fmt(val)
+            {sortedMain.map((row) => renderCategoryRow(row))}
+            {otherRow && (
+              <>
+                <TableRow
+                  hover
+                  onClick={() => setOtherOpen(!otherOpen)}
+                  sx={{ cursor: "pointer" }}
+                >
+                  <TableCell
+                    sx={{
+                      position: "sticky",
+                      left: 0,
+                      zIndex: 1,
+                      bgcolor: "background.paper",
+                    }}
+                  >
+                    <Box
+                      sx={{ display: "flex", alignItems: "center", gap: 0.5 }}
+                    >
+                      {otherOpen ? (
+                        <ExpandLess fontSize="small" />
                       ) : (
-                        <Typography variant="body2" color="text.disabled">
-                          —
-                        </Typography>
+                        <ExpandMore fontSize="small" />
                       )}
+                      <Typography variant="body2" fontStyle="italic">
+                        Other ({otherRow.count} categories)
+                      </Typography>
+                    </Box>
+                  </TableCell>
+                  <TableCell
+                    align="right"
+                    sx={{ fontWeight: 700, fontVariantNumeric: "tabular-nums" }}
+                  >
+                    {fmt(otherRow.total)}
+                  </TableCell>
+                  <TableCell
+                    align="right"
+                    sx={{
+                      color: "text.secondary",
+                      fontVariantNumeric: "tabular-nums",
+                      borderRight: `1px solid ${theme.palette.divider}`,
+                    }}
+                  >
+                    {fmt(otherRow.avg)}
+                  </TableCell>
+                  {otherRow.values.map((val, mi) => (
+                    <TableCell
+                      key={monthKey(monthsAsc[mi])}
+                      align="right"
+                      sx={{
+                        color: "text.secondary",
+                        fontVariantNumeric: "tabular-nums",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {val > 0 ? fmt(val) : "—"}
                     </TableCell>
-                  );
-                })}
-              </TableRow>
-            ))}
+                  ))}
+                  {showDelta && <DeltaCell delta={otherRow.delta} />}
+                </TableRow>
+                {otherOpen &&
+                  sortedSmall.map((row) => renderCategoryRow(row, true))}
+              </>
+            )}
             {/* Totals row */}
             <TableRow
               sx={{
                 "& td": {
                   fontWeight: 700,
                   borderTop: `2px solid ${theme.palette.divider}`,
-                  bgcolor: theme.palette.action.selected,
+                  bgcolor: mode === "dark" ? "grey.900" : "grey.100",
+                  fontVariantNumeric: "tabular-nums",
                 },
               }}
             >
-              <TableCell sx={{ fontWeight: 700 }}>Total</TableCell>
-              {aggregateData.map((m) => (
-                <TableCell key={m.month} align="right">
+              <TableCell sx={{ position: "sticky", left: 0, zIndex: 1 }}>
+                Total
+              </TableCell>
+              <TableCell align="right">{fmt(grandTotal)}</TableCell>
+              <TableCell
+                align="right"
+                sx={{ borderRight: `1px solid ${theme.palette.divider}` }}
+              >
+                {fmt(monthsAsc.length ? grandTotal / monthsAsc.length : 0)}
+              </TableCell>
+              {monthsAsc.map((m) => (
+                <TableCell key={monthKey(m)} align="right">
                   {fmt(m.totalMonthlySpend)}
                 </TableCell>
               ))}
+              {showDelta && (
+                <DeltaCell
+                  delta={
+                    monthsAsc[monthsAsc.length - 1].totalMonthlySpend -
+                    monthsAsc[monthsAsc.length - 2].totalMonthlySpend
+                  }
+                />
+              )}
             </TableRow>
           </TableBody>
         </Table>
       </TableContainer>
+
+      {/* Category × month drill-down */}
+      <Drawer
+        anchor="right"
+        open={!!drill}
+        onClose={() => setDrill(null)}
+        PaperProps={{ sx: { width: { xs: "100%", md: 640 }, p: 2 } }}
+      >
+        {drill && (
+          <Box>
+            <Box
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                mb: 1,
+              }}
+            >
+              <Typography variant="h6" fontWeight={700}>
+                {drill.category} — {drill.label}
+              </Typography>
+              <IconButton onClick={() => setDrill(null)} size="small">
+                <CloseIcon />
+              </IconButton>
+            </Box>
+            <Divider sx={{ mb: 2 }} />
+
+            {drillTopMerchants.length > 0 && (
+              <Box sx={{ mb: 3 }}>
+                <Typography variant="subtitle2" gutterBottom>
+                  Top merchants
+                </Typography>
+                <Box
+                  sx={{ height: Math.max(120, drillTopMerchants.length * 34) }}
+                >
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart
+                      data={drillTopMerchants}
+                      layout="vertical"
+                      margin={{ top: 4, right: 24, left: 8, bottom: 4 }}
+                    >
+                      <XAxis type="number" tickFormatter={(v) => fmt(v)} hide />
+                      <YAxis
+                        dataKey="merchant"
+                        type="category"
+                        width={130}
+                        tick={{
+                          fontSize: 11,
+                          fill: theme.palette.text.secondary,
+                        }}
+                      />
+                      <Tooltip
+                        formatter={(v) => fmt(v)}
+                        cursor={{ fill: theme.palette.action.hover }}
+                      />
+                      <Bar
+                        dataKey="value"
+                        fill={theme.palette.primary.main}
+                        radius={[0, 3, 3, 0]}
+                        barSize={16}
+                      />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </Box>
+              </Box>
+            )}
+
+            <Typography variant="subtitle2" gutterBottom>
+              Transactions
+            </Typography>
+            <TransactionTable
+              transactions={drillTransactions}
+              onEdit={setEditTarget}
+              onDelete={(t) =>
+                remove(t.transactionId).catch((e) =>
+                  console.error("Delete failed", e),
+                )
+              }
+            />
+          </Box>
+        )}
+      </Drawer>
+
+      <TransactionEditDialog
+        open={!!editTarget}
+        transaction={editTarget}
+        categories={categories}
+        onClose={() => setEditTarget(null)}
+        onSave={update}
+        onRecategoriseMerchant={recategoriseMerchant}
+      />
     </Box>
   );
 }

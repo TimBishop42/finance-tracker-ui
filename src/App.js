@@ -6,6 +6,7 @@ import Layout from "./components/layout/Layout";
 import Dashboard from "./components/dashboard/Dashboard";
 import TransactionForm from "./components/transactions/TransactionForm";
 import TransactionUploader from "./components/transactions/TransactionUploader";
+import TransactionsBrowser from "./components/transactions/TransactionsBrowser";
 import AggregateData from "./components/dashboard/AggregateData";
 import SpendingHeatmap from "./components/dashboard/SpendingHeatmap";
 import SubscriptionDashboard from "./components/subscriptions/SubscriptionDashboard";
@@ -67,6 +68,7 @@ function App() {
               <Route path="/" element={<Dashboard />} />
               <Route path="/add-transaction" element={<TransactionForm />} />
               <Route path="/bulk-upload" element={<TransactionUploader />} />
+              <Route path="/transactions" element={<TransactionsBrowser />} />
               <Route path="/summary" element={<AggregateData />} />
               <Route path="/heatmap" element={<SpendingHeatmap />} />
               <Route

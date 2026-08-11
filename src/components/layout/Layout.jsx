@@ -19,6 +19,7 @@ import {
   ChevronLeft as ChevronLeftIcon,
   Add as AddIcon,
   Upload as UploadIcon,
+  ReceiptLong as ReceiptLongIcon,
   Assessment as AssessmentIcon,
   DarkMode as DarkModeIcon,
   LightMode as LightModeIcon,
@@ -40,6 +41,10 @@ const drawerWidth = 240;
 const Main = styled("main", { shouldForwardProp: (prop) => prop !== "open" })(
   ({ theme, open }) => ({
     flexGrow: 1,
+    // Without this a wide child (e.g. the breakdown table) sets the flex
+    // item's min-content width and the whole page scrolls sideways instead
+    // of the child's own container.
+    minWidth: 0,
     padding: theme.spacing(3),
     transition: theme.transitions.create("margin", {
       easing: theme.transitions.easing.sharp,
@@ -85,6 +90,7 @@ const menuItems = [
   { text: "Dashboard", icon: <HomeIcon />, path: "/" },
   { text: "Add Transaction", icon: <AddIcon />, path: "/add-transaction" },
   { text: "Bulk Upload", icon: <UploadIcon />, path: "/bulk-upload" },
+  { text: "Transactions", icon: <ReceiptLongIcon />, path: "/transactions" },
   { text: "Details Summary", icon: <AssessmentIcon />, path: "/summary" },
   { text: "Spend Heatmap", icon: <CalendarMonthIcon />, path: "/heatmap" },
   {
