@@ -11,8 +11,35 @@ export const fmt2 = (n, ccy) => moneyFmt(ccy, 2).format(Number(n) || 0);
 export const qtyFmt = (q) =>
   (Number(q) || 0).toLocaleString(undefined, { maximumFractionDigits: 2 });
 export const todayIso = () => new Date().toISOString().slice(0, 10);
+const MONTHS = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
+];
+/** "2026-03-01" -> "Mar 26", for chart axes where the full ISO date is noise. */
+export const monthShort = (iso) => {
+  const [y, m] = String(iso).split("-");
+  return `${MONTHS[Number(m) - 1] || "?"} ${String(y).slice(2)}`;
+};
+/** "2026-03-01" -> "Mar 2026", for tooltip headings. */
+export const monthLong = (iso) => {
+  const [y, m] = String(iso).split("-");
+  return `${MONTHS[Number(m) - 1] || "?"} ${y}`;
+};
+// Signed, for movements ("+3.2%"). Use `share` for proportions, where a leading
+// plus would be nonsense.
 export const pct = (n) =>
   n == null ? "—" : `${n >= 0 ? "+" : ""}${n.toFixed(1)}%`;
+export const share = (n) => (n == null ? "—" : `${Number(n).toFixed(1)}%`);
 export const compact = (n) => {
   const v = Number(n) || 0;
   const a = Math.abs(v);

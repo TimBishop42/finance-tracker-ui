@@ -34,24 +34,27 @@ import {
   CallSplit as CallSplitIcon,
   Sync as SyncIcon,
 } from "@mui/icons-material";
-import {
-  PieChart,
-  Pie,
-  Cell,
-  AreaChart,
-  Area,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-} from "recharts";
 import { useWealth } from "../../services/useWealth";
 import { quoteSecurity } from "../../services/finance-service";
-import { fmt, fmt2, qtyFmt, todayIso, pct, compact } from "./wealthFormat";
+import { fmt, fmt2, qtyFmt, todayIso, pct, monthLong } from "./wealthFormat";
+import {
+  SNAPSHOT_RANGES,
+  allocationHistory,
+  countByRange,
+  snapshotsInRange,
+} from "./vestingSchedule";
+import {
+  AllocationBar,
+  AllocationHistoryChart,
+  NetWorthChart,
+} from "./WealthCharts";
 import Kpi from "./Kpi";
 import TradeDialog from "./TradeDialog";
+import CategoryBreakdownDialog from "./CategoryBreakdownDialog";
+
+// Monthly snapshots mean 6M is only ~6 points; a year reads better and still
+// feels current.
+const DEFAULT_RANGE = "1Y";
 
 // --- formatting + constants -------------------------------------------------
 
@@ -64,6 +67,7 @@ const fmtRatio = (r) => {
 const CLASS_LABELS = {
   CASH: "Cash & Savings",
   SHARES: "Shares & ETFs",
+  OPTIONS: "Equity Comp",
   SUPER: "Superannuation",
   PROPERTY: "Property",
   OTHER_ASSET: "Other Assets",
@@ -72,6 +76,7 @@ const CLASS_LABELS = {
 const CLASS_COLORS = {
   CASH: "#26a69a",
   SHARES: "#42a5f5",
+  OPTIONS: "#ec407a",
   SUPER: "#7e57c2",
   PROPERTY: "#ef6c00",
   OTHER_ASSET: "#8d6e63",
@@ -818,6 +823,9 @@ export default function WealthTracker() {
   const [snack, setSnack] = useState(null);
   const [editingPrice, setEditingPrice] = useState(null); // securityId being inline-edited
   const [priceDraft, setPriceDraft] = useState("");
+  const [drillClass, setDrillClass] = useState(null); // assetClass being drilled into
+  const [range, setRange] = useState(DEFAULT_RANGE); // timeframe for both series
+  const [allocMode, setAllocMode] = useState("VALUE"); // 'VALUE' | 'SHARE'
   const cancelInlineRef = useRef(false);
 
   const onRefreshPrices = async () => {
@@ -916,6 +924,7 @@ export default function WealthTracker() {
   const allocData = useMemo(
     () =>
       (summary?.allocation || []).map((a) => ({
+        assetClass: a.assetClass,
         name: classLabel(a.assetClass),
         value: Number(a.value) || 0,
         pct: a.pct,
@@ -924,16 +933,54 @@ export default function WealthTracker() {
     [summary],
   );
 
+  const allSnapshots = useMemo(() => summary?.snapshots || [], [summary]);
+
+  const rangeCounts = useMemo(
+    () => countByRange(allSnapshots, todayIso()),
+    [allSnapshots],
+  );
+
+  // Open on the default timeframe, but fall back to Max the first time a
+  // summary arrives with too little recent history — a new user shouldn't be
+  // met with an empty chart when they do have snapshots, just older ones.
+  const rangeSettledRef = useRef(false);
+  React.useEffect(() => {
+    if (rangeSettledRef.current || !summary) return;
+    rangeSettledRef.current = true;
+    if (rangeCounts[DEFAULT_RANGE] < 2 && rangeCounts.MAX >= 2) {
+      setRange("MAX");
+    }
+  }, [summary, rangeCounts]);
+
+  // Snapshots inside the selected timeframe — shared by both time series so
+  // one control governs the whole page.
+  const rangedSnapshots = useMemo(() => {
+    const months = SNAPSHOT_RANGES.find((r) => r.key === range)?.months;
+    return snapshotsInRange(allSnapshots, months, todayIso());
+  }, [allSnapshots, range]);
+
   const snapData = useMemo(
     () =>
-      (summary?.snapshots || []).map((s) => ({
+      rangedSnapshots.map((s) => ({
         date: s.asOfDate,
         netWorth: Number(s.netWorth) || 0,
         assets: Number(s.totalAssets) || 0,
         liabilities: Number(s.totalLiabilities) || 0,
       })),
-    [summary],
+    [rangedSnapshots],
   );
+
+  const allocHistory = useMemo(
+    () => allocationHistory(rangedSnapshots, allocMode === "SHARE"),
+    [rangedSnapshots, allocMode],
+  );
+
+  const snapshotSpan = useMemo(() => {
+    if (!allSnapshots.length) return "";
+    const first = monthLong(allSnapshots[0].asOfDate);
+    const last = monthLong(allSnapshots[allSnapshots.length - 1].asOfDate);
+    return first === last ? first : `${first} – ${last}`;
+  }, [allSnapshots]);
 
   const holdings = summary?.holdings || [];
   const options = summary?.options || [];
@@ -1054,104 +1101,137 @@ export default function WealthTracker() {
         </Grid>
       </Grid>
 
-      {/* Charts */}
-      <Grid container spacing={2} sx={{ mb: 2 }}>
-        <Grid item xs={12} md={5}>
-          <Paper sx={{ p: 2, height: 320 }}>
-            <Typography variant="subtitle1" gutterBottom>
-              Allocation by asset class
-            </Typography>
-            {allocData.length ? (
-              <ResponsiveContainer width="100%" height={250}>
-                <PieChart>
-                  <Pie
-                    data={allocData}
-                    dataKey="value"
-                    nameKey="name"
-                    innerRadius={55}
-                    outerRadius={90}
-                    paddingAngle={2}
-                  >
-                    {allocData.map((d) => (
-                      <Cell key={d.name} fill={d.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip formatter={(v) => fmt(v, currency)} />
-                  <Legend />
-                </PieChart>
-              </ResponsiveContainer>
-            ) : (
-              <Typography variant="body2" color="text.secondary">
-                Add an asset or a holding to see your allocation.
-              </Typography>
-            )}
-          </Paper>
-        </Grid>
-        <Grid item xs={12} md={7}>
-          <Paper sx={{ p: 2, height: 320 }}>
-            <Typography variant="subtitle1" gutterBottom>
-              Net worth over time
-            </Typography>
-            {snapData.length ? (
-              <>
-                <ResponsiveContainer
-                  width="100%"
-                  height={snapData.length === 1 ? 215 : 250}
+      {/* Net worth over time (full width) */}
+      <Paper sx={{ p: 2, mb: 2 }}>
+        <Box
+          sx={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            flexWrap: "wrap",
+            gap: 1,
+            mb: 1,
+          }}
+        >
+          <Typography variant="subtitle1">Net worth over time</Typography>
+          {allSnapshots.length > 0 && (
+            <ToggleButtonGroup
+              size="small"
+              exclusive
+              value={range}
+              onChange={(_, v) => v && setRange(v)}
+              aria-label="timeframe"
+            >
+              {SNAPSHOT_RANGES.map((r) => (
+                <ToggleButton
+                  key={r.key}
+                  value={r.key}
+                  // Anything without two points can't draw a line. Greying it
+                  // out shows at a glance how much history you actually have.
+                  disabled={r.key !== "MAX" && rangeCounts[r.key] < 2}
                 >
-                  <AreaChart
-                    data={snapData}
-                    margin={{ top: 5, right: 10, bottom: 5, left: 0 }}
-                  >
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="date" />
-                    <YAxis tickFormatter={compact} />
-                    <Tooltip formatter={(v) => fmt(v, currency)} />
-                    <Legend />
-                    <Area
-                      type="monotone"
-                      dataKey="assets"
-                      name="Assets"
-                      stroke="#66bb6a"
-                      fill="#66bb6a"
-                      fillOpacity={0.15}
-                      dot={{ r: 2 }}
-                    />
-                    <Area
-                      type="monotone"
-                      dataKey="liabilities"
-                      name="Liabilities"
-                      stroke="#ef5350"
-                      fill="#ef5350"
-                      fillOpacity={0.15}
-                      dot={{ r: 2 }}
-                    />
-                    <Area
-                      type="monotone"
-                      dataKey="netWorth"
-                      name="Net worth"
-                      stroke="#1976d2"
-                      fill="#1976d2"
-                      fillOpacity={0.25}
-                      dot={{ r: 3 }}
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
-                {snapData.length === 1 && (
-                  <Typography variant="caption" color="text.secondary">
-                    Only one snapshot so far — snapshot on different days (or
-                    wait for the monthly auto-capture) to see a trend line.
-                  </Typography>
-                )}
-              </>
-            ) : (
-              <Typography variant="body2" color="text.secondary">
-                No snapshots yet — hit “Snapshot now” to capture today; points
-                accumulate over time.
+                  {r.label}
+                </ToggleButton>
+              ))}
+            </ToggleButtonGroup>
+          )}
+        </Box>
+        {snapData.length ? (
+          <>
+            <NetWorthChart
+              data={snapData}
+              currency={currency}
+              height={snapData.length === 1 ? 260 : 300}
+            />
+            {snapData.length === 1 && (
+              <Typography variant="caption" color="text.secondary">
+                Only one snapshot in this timeframe — snapshot on different days
+                (or wait for the monthly auto-capture) to see a trend line.
               </Typography>
             )}
-          </Paper>
-        </Grid>
-      </Grid>
+            {/* Always state the span, so "the toggles do nothing" is
+                answerable at a glance: if every range holds the same points,
+                you simply don't have history beyond that yet. */}
+            <Typography
+              variant="caption"
+              color="text.secondary"
+              sx={{ display: "block", mt: 0.5 }}
+            >
+              {snapData.length < allSnapshots.length
+                ? `Showing ${snapData.length} of ${allSnapshots.length} snapshots — pick Max for the full history.`
+                : `${allSnapshots.length} ${
+                    allSnapshots.length === 1 ? "snapshot" : "snapshots"
+                  }, all of your history (${snapshotSpan}). Wider timeframes will look identical until there's more.`}
+            </Typography>
+          </>
+        ) : (
+          <Typography variant="body2" color="text.secondary">
+            No snapshots yet — hit “Snapshot now” to capture today; points
+            accumulate over time.
+          </Typography>
+        )}
+      </Paper>
+
+      {/* Allocation: composition now, plus how it got there */}
+      <Paper sx={{ p: 2, mb: 2 }}>
+        <Box
+          sx={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            flexWrap: "wrap",
+            gap: 1,
+            mb: 1,
+          }}
+        >
+          <Typography variant="subtitle1">Allocation by asset class</Typography>
+          {allocHistory.rows.length >= 2 && (
+            <ToggleButtonGroup
+              size="small"
+              exclusive
+              value={allocMode}
+              onChange={(_, v) => v && setAllocMode(v)}
+              aria-label="allocation mode"
+            >
+              <ToggleButton value="VALUE">Value</ToggleButton>
+              <ToggleButton value="SHARE">Share %</ToggleButton>
+            </ToggleButtonGroup>
+          )}
+        </Box>
+        {allocData.length ? (
+          <AllocationBar
+            data={allocData}
+            currency={currency}
+            onSelect={setDrillClass}
+          />
+        ) : (
+          <Typography variant="body2" color="text.secondary">
+            Add an asset or a holding to see your allocation.
+          </Typography>
+        )}
+        {allocHistory.rows.length >= 2 && (
+          <Box sx={{ mt: 3 }}>
+            <Typography variant="subtitle2" gutterBottom>
+              Allocation over time
+            </Typography>
+            <AllocationHistoryChart
+              rows={allocHistory.rows}
+              classes={allocHistory.classes}
+              currency={currency}
+              asPercent={allocMode === "SHARE"}
+              labelFor={classLabel}
+              colorFor={(c) => CLASS_COLORS[c] || "#90a4ae"}
+            />
+            {allocHistory.skipped > 0 && (
+              <Typography variant="caption" color="text.secondary">
+                {allocHistory.skipped === 1
+                  ? "1 snapshot in this timeframe predates per-category capture and is not charted."
+                  : `${allocHistory.skipped} snapshots in this timeframe predate per-category capture and are not charted.`}
+              </Typography>
+            )}
+          </Box>
+        )}
+      </Paper>
 
       {/* Holdings */}
       <Paper sx={{ p: 2, mb: 2 }}>
@@ -1690,6 +1770,15 @@ export default function WealthTracker() {
         security={editSecurity}
         onClose={() => setEditSecurity(null)}
         onSave={(id, patch) => wealth.updateSecurity(id, patch)}
+      />
+      <CategoryBreakdownDialog
+        open={!!drillClass}
+        assetClass={drillClass}
+        label={classLabel(drillClass)}
+        color={CLASS_COLORS[drillClass]}
+        summary={summary}
+        currency={currency}
+        onClose={() => setDrillClass(null)}
       />
       <Snackbar
         open={!!snack}
