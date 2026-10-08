@@ -31,6 +31,7 @@ import {
 import {
   getAllCategories,
   deleteCategory,
+  setCategoryBudget,
   getMaxSpendValue,
   setMaxSpendValue as updateMaxSpendValue,
   trainModel,
@@ -39,6 +40,58 @@ import { useCategoryManagement } from "../../hooks/useCategoryManagement";
 import { NewCategoryDialog } from "../common/NewCategoryDialog";
 import { useCustomMerchants } from "../../services/useCustomMerchants";
 import { useNeutralMerchants } from "../../services/useNeutralMerchants";
+
+const BUDGET_INPUT = /^(\d+\.?\d{0,2})?$/;
+
+// Saves on blur/Enter; empty input clears the budget.
+function CategoryBudgetField({ category, onSaved }) {
+  const saved =
+    category.monthlyBudget == null ? "" : String(category.monthlyBudget);
+  const [value, setValue] = useState(saved);
+  const [error, setError] = useState(null);
+
+  useEffect(() => setValue(saved), [saved]);
+
+  const save = async () => {
+    if (value === saved || (value !== "" && Number(value) === Number(saved)))
+      return;
+    try {
+      onSaved(
+        await setCategoryBudget(
+          category.categoryName,
+          value === "" ? null : Number(value),
+        ),
+      );
+      setError(null);
+    } catch (err) {
+      console.error("Error saving category budget:", err);
+      setError("Save failed");
+    }
+  };
+
+  return (
+    <TextField
+      size="small"
+      placeholder="No budget"
+      value={value}
+      onChange={(e) =>
+        BUDGET_INPUT.test(e.target.value) && setValue(e.target.value)
+      }
+      onBlur={save}
+      onKeyDown={(e) => e.key === "Enter" && e.target.blur()}
+      error={!!error}
+      helperText={error}
+      inputProps={{
+        inputMode: "decimal",
+        "aria-label": `${category.categoryName} monthly budget`,
+      }}
+      InputProps={{
+        startAdornment: <InputAdornment position="start">$</InputAdornment>,
+      }}
+      sx={{ width: 140, mr: 1 }}
+    />
+  );
+}
 
 export default function SettingsDialog({ open, onClose }) {
   const [categories, setCategories] = useState([]);
@@ -133,6 +186,16 @@ export default function SettingsDialog({ open, onClose }) {
     }
   };
 
+  const handleBudgetSaved = (saved) =>
+    setCategories((prev) =>
+      prev.map((c) => (c.categoryName === saved.categoryName ? saved : c)),
+    );
+
+  const budgetTotal = categories.reduce(
+    (sum, c) => sum + (c.monthlyBudget ?? 0),
+    0,
+  );
+
   const handleMaxSpendInputChange = (event) => {
     const value = event.target.value;
     // Allow empty input for better UX
@@ -214,7 +277,7 @@ export default function SettingsDialog({ open, onClose }) {
             aria-controls="categories-content"
             id="categories-header"
           >
-            <Typography>Categories</Typography>
+            <Typography>Categories &amp; Budgets</Typography>
           </AccordionSummary>
           <AccordionDetails>
             <Box sx={{ mb: 2 }}>
@@ -237,9 +300,13 @@ export default function SettingsDialog({ open, onClose }) {
             <List>
               {categories && categories.length > 0 ? (
                 categories.map((category) => (
-                  <ListItem key={category.categoryName}>
+                  <ListItem key={category.categoryName} sx={{ pr: 26 }}>
                     <ListItemText primary={category.categoryName} />
                     <ListItemSecondaryAction>
+                      <CategoryBudgetField
+                        category={category}
+                        onSaved={handleBudgetSaved}
+                      />
                       <IconButton
                         edge="end"
                         aria-label="delete"
@@ -259,6 +326,19 @@ export default function SettingsDialog({ open, onClose }) {
                 </Typography>
               )}
             </List>
+            {budgetTotal > 0 && (
+              <Typography
+                variant="body2"
+                color={
+                  budgetTotal > maxSpendValue
+                    ? "warning.main"
+                    : "text.secondary"
+                }
+              >
+                Category budgets total ${budgetTotal.toLocaleString()} of the $
+                {maxSpendValue.toLocaleString()} monthly spend target
+              </Typography>
+            )}
           </AccordionDetails>
         </Accordion>
 

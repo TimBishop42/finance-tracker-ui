@@ -261,6 +261,10 @@ function MonthlyTab({ maxSpendValue }) {
     return transactions
       .filter((t) => {
         if (t.category !== drill.category) return false;
+        // Match the server's spend aggregation: only EXPENSE (or legacy
+        // untyped) rows feed the cell, so INCOME/NEUTRAL stay out of the drill.
+        if (t.transactionType && t.transactionType.toUpperCase() !== "EXPENSE")
+          return false;
         const ms = Number(t.transactionDateTime);
         if (!Number.isFinite(ms)) return false;
         const d = new Date(ms);

@@ -95,6 +95,19 @@ export const deleteCategory = async (categoryName) => {
   }
 };
 
+// monthlyBudget null clears the budget. Resolves to the saved category.
+export const setCategoryBudget = async (categoryName, monthlyBudget) => {
+  const response = await fetch("/api/finance/set-category-budget", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ categoryName, monthlyBudget }),
+  });
+  if (!response.ok) {
+    throw new Error(await response.text());
+  }
+  return response.json();
+};
+
 export const getMaxSpendValue = async () => {
   try {
     const response = await fetch("/api/finance/get-max-spend-value");
