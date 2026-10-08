@@ -15,7 +15,6 @@ import SuperTracker from "./components/super/SuperTracker";
 import SalaryTracker from "./components/salary/SalaryTracker";
 import WealthTracker from "./components/wealth/WealthTracker";
 import KidsWealthTracker from "./components/wealth/KidsWealthTracker";
-import { CategoriesProvider } from "./context/CategoriesContext";
 
 const THEME_STORAGE_KEY = "themeMode";
 
@@ -61,33 +60,31 @@ function App() {
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
-      <CategoriesProvider>
-        <Router>
-          <Layout onToggleColorMode={toggleColorMode} mode={mode}>
-            <Routes>
-              <Route path="/" element={<Dashboard />} />
-              <Route path="/add-transaction" element={<TransactionForm />} />
-              <Route path="/bulk-upload" element={<TransactionUploader />} />
-              <Route path="/transactions" element={<TransactionsBrowser />} />
-              <Route path="/summary" element={<AggregateData />} />
-              <Route path="/heatmap" element={<SpendingHeatmap />} />
-              <Route
-                path="/subscriptions"
-                element={<SubscriptionDashboard />}
-              />
-              <Route path="/bills" element={<Bills />} />
-              {/* Legacy paths → merged Bills tab */}
-              <Route path="/calendar" element={<Bills />} />
-              <Route path="/recurring" element={<Bills />} />
-              <Route path="/super" element={<SuperTracker />} />
-              <Route path="/salary" element={<SalaryTracker />} />
-              <Route path="/wealth" element={<WealthTracker />} />
-              <Route path="/kids-wealth" element={<KidsWealthTracker />} />
-              <Route path="*" element={<Dashboard />} />
-            </Routes>
-          </Layout>
-        </Router>
-      </CategoriesProvider>
+      <Router>
+        <Layout onToggleColorMode={toggleColorMode} mode={mode}>
+          <Routes>
+            <Route path="/" element={<Dashboard />} />
+            <Route path="/add-transaction" element={<TransactionForm />} />
+            <Route path="/bulk-upload" element={<TransactionUploader />} />
+            <Route path="/transactions" element={<TransactionsBrowser />} />
+            <Route path="/summary" element={<AggregateData />} />
+            <Route path="/heatmap" element={<SpendingHeatmap />} />
+            <Route
+              path="/subscriptions"
+              element={<SubscriptionDashboard />}
+            />
+            <Route path="/bills" element={<Bills />} />
+            {/* Legacy paths → merged Bills tab */}
+            <Route path="/calendar" element={<Bills />} />
+            <Route path="/recurring" element={<Bills />} />
+            <Route path="/super" element={<SuperTracker />} />
+            <Route path="/salary" element={<SalaryTracker />} />
+            <Route path="/wealth" element={<WealthTracker />} />
+            <Route path="/kids-wealth" element={<KidsWealthTracker />} />
+            <Route path="*" element={<Dashboard />} />
+          </Routes>
+        </Layout>
+      </Router>
     </ThemeProvider>
   );
 }

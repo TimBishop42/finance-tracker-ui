@@ -25,7 +25,6 @@ import {
   ToggleButtonGroup,
   Tooltip,
 } from "@mui/material";
-import CloseIcon from "@mui/icons-material/Close";
 import DeleteIcon from "@mui/icons-material/Delete";
 import CloudUploadIcon from "@mui/icons-material/CloudUpload";
 import SwapHorizIcon from "@mui/icons-material/SwapHoriz";
