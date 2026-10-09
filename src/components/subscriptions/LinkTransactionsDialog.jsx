@@ -21,19 +21,13 @@ import {
 } from "@mui/material";
 import { Search as SearchIcon } from "@mui/icons-material";
 import { getAllTransactions } from "../../services/useSubscriptions";
+import { fmt2 } from "../../utils/format";
 
 // Feature doc §2A.5 — link stored transactions to a subscription/bill. Ticked rows
 // become the commitment's charges; the server marks those periods paid and re-derives
 // amount + cadence + due day from them (fixes a mis-detected cadence like the Prime case).
 
 const MAX_ROWS = 300;
-
-const fmtMoney = (n) =>
-  "$" +
-  (Number(n) || 0).toLocaleString("en-US", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
 
 const fmtDate = (t) => {
   if (t.transactionDateTime) {
@@ -183,7 +177,7 @@ export default function LinkTransactionsDialog({ open, onClose, sub, onSave }) {
                     secondary={fmtDate(t)}
                   />
                   <Typography variant="body2" fontWeight={500} sx={{ ml: 2 }}>
-                    {fmtMoney(t.amount)}
+                    {fmt2(t.amount)}
                   </Typography>
                 </ListItemButton>
               </ListItem>

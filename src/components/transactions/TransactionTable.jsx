@@ -14,6 +14,7 @@ import {
   Box,
 } from "@mui/material";
 import { Edit as EditIcon, Delete as DeleteIcon } from "@mui/icons-material";
+import { fmt2 } from "../../utils/format";
 
 // Shared, read+edit transaction table. Consumers pass an already-filtered/sorted
 // list; this handles rendering, optional group-by with subtotals, and row actions.
@@ -24,13 +25,6 @@ const TYPE_COLORS = {
   INCOME: "success",
   NEUTRAL: "warning",
 };
-
-const fmtMoney = (n) =>
-  "$" +
-  (Number(n) || 0).toLocaleString("en-US", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
 
 const fmtDate = (t) => {
   const ms = Number(t.transactionDateTime);
@@ -71,7 +65,7 @@ function Row({ t, onEdit, onDelete }) {
           variant="outlined"
         />
       </TableCell>
-      <TableCell align="right">{fmtMoney(t.amount)}</TableCell>
+      <TableCell align="right">{fmt2(t.amount)}</TableCell>
       <TableCell>{t.comment}</TableCell>
       <TableCell align="center">
         <Tooltip title="Edit">
@@ -188,7 +182,7 @@ export default function TransactionTable({
                     </TableCell>
                     <TableCell align="right">
                       <Typography variant="body2" fontWeight={700}>
-                        {fmtMoney(g.subtotal)}
+                        {fmt2(g.subtotal)}
                       </Typography>
                     </TableCell>
                     <TableCell colSpan={2} />
@@ -218,7 +212,7 @@ export default function TransactionTable({
           <Typography variant="body2" color="text.secondary">
             {transactions.length} transactions ·{" "}
             <strong>
-              {fmtMoney(
+              {fmt2(
                 transactions.reduce((s, t) => s + (Number(t.amount) || 0), 0),
               )}
             </strong>

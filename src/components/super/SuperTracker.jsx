@@ -34,22 +34,11 @@ import {
 } from "../../services/superProjection";
 import { useSalaryHistory } from "../../services/useSalaryHistory";
 import { getSuperBalance } from "../../services/finance-service";
+import { fmt, compactMoney } from "../../utils/format";
 
 const STORAGE_KEY = "superInputs";
 const FALLBACK_SALARY = 90000;
 
-const currency = new Intl.NumberFormat("en-AU", {
-  style: "currency",
-  currency: "AUD",
-  maximumFractionDigits: 0,
-});
-const fmt = (n) => currency.format(Number.isFinite(n) ? n : 0);
-const compact = (n) => {
-  const v = Number(n) || 0;
-  if (Math.abs(v) >= 1_000_000) return `$${(v / 1_000_000).toFixed(1)}M`;
-  if (Math.abs(v) >= 1_000) return `$${Math.round(v / 1_000)}k`;
-  return `$${Math.round(v)}`;
-};
 
 function loadInputs() {
   try {
@@ -640,7 +629,7 @@ export default function SuperTracker() {
                   tickCount={10}
                   label={{ value: "Age", position: "insideBottom", offset: -2 }}
                 />
-                <YAxis tickFormatter={compact} width={56} />
+                <YAxis tickFormatter={compactMoney} width={56} />
                 <Tooltip content={<ChartTooltip />} />
                 <Legend />
                 <ReferenceLine

@@ -36,17 +36,8 @@ import {
 } from "@mui/icons-material";
 import { useWealth } from "../../services/useWealth";
 import { quoteSecurity } from "../../services/finance-service";
-import {
-  fmt,
-  fmt2,
-  qtyFmt,
-  todayIso,
-  pct,
-  monthLong,
-  CLASS_COLORS,
-  classLabel,
-  classColor,
-} from "./wealthFormat";
+import { fmt, fmt2, qtyFmt, todayIso, pct, monthLong } from "../../utils/format";
+import { CLASS_COLORS, classLabel, classColor } from "./wealthFormat";
 import {
   SNAPSHOT_RANGES,
   allocationHistory,

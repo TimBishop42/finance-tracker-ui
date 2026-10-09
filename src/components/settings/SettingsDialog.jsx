@@ -40,6 +40,7 @@ import { useCategoryManagement } from "../../hooks/useCategoryManagement";
 import { NewCategoryDialog } from "../common/NewCategoryDialog";
 import { useCustomMerchants } from "../../services/useCustomMerchants";
 import { useNeutralMerchants } from "../../services/useNeutralMerchants";
+import { fmt, fmt2 } from "../../utils/format";
 
 const BUDGET_INPUT = /^(\d+\.?\d{0,2})?$/;
 
@@ -335,8 +336,8 @@ export default function SettingsDialog({ open, onClose }) {
                     : "text.secondary"
                 }
               >
-                Category budgets total ${budgetTotal.toLocaleString()} of the $
-                {maxSpendValue.toLocaleString()} monthly spend target
+                Category budgets total {fmt2(budgetTotal)} of the{" "}
+                {fmt(maxSpendValue)} monthly spend target
               </Typography>
             )}
           </AccordionDetails>

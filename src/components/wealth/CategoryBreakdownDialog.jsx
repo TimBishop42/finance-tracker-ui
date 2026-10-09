@@ -28,7 +28,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { fmt, fmt2, qtyFmt, share, compact, todayIso } from "./wealthFormat";
+import { fmt, fmt2, qtyFmt, share, compact, todayIso } from "../../utils/format";
 import {
   buildVestingSchedule,
   categoryHistory,

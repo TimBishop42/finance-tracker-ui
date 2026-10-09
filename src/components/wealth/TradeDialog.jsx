@@ -12,7 +12,7 @@ import {
   ToggleButton,
   ToggleButtonGroup,
 } from "@mui/material";
-import { todayIso } from "./wealthFormat";
+import { todayIso } from "../../utils/format";
 
 const CURRENCIES = ["AUD", "USD"];
 const OWNERS = [

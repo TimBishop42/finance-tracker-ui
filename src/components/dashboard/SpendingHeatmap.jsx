@@ -5,6 +5,7 @@ import {
 } from '@mui/material';
 import { ChevronLeft, ChevronRight } from '@mui/icons-material';
 import RestClient from '../../rest/CategoryClient';
+import { fmt } from "../../utils/format";
 
 const CELL_SIZE = 13;
 const CELL_GAP = 2;
@@ -123,10 +124,10 @@ export default function SpendingHeatmap() {
 
       <Box display="flex" gap={2} mb={3}>
         {[
-          { label: 'Year Total', value: `$${totalYear.toLocaleString('en-US', { maximumFractionDigits: 0 })}` },
+          { label: 'Year Total', value: fmt(totalYear) },
           { label: 'Active Days', value: activeDays },
-          { label: 'Avg (active days)', value: `$${activeDays > 0 ? (totalYear / activeDays).toFixed(0) : 0}` },
-          { label: 'Biggest Day', value: `$${maxDay.toFixed(0)}` },
+          { label: 'Avg (active days)', value: fmt(activeDays > 0 ? totalYear / activeDays : 0) },
+          { label: 'Biggest Day', value: fmt(maxDay) },
         ].map(({ label, value }) => (
           <Card key={label} variant="outlined" sx={{ flex: 1 }}>
             <CardContent sx={{ py: 1.5, '&:last-child': { pb: 1.5 } }}>

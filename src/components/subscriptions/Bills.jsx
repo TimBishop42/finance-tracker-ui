@@ -34,6 +34,7 @@ import SubscriptionDialog from "./SubscriptionDialog";
 import LinkTransactionsDialog from "./LinkTransactionsDialog";
 import BrandLogo from "./BrandLogo";
 import RestClient from "../../rest/CategoryClient";
+import { fmt2 } from "../../utils/format";
 
 const CAT_COLORS = {
   Bills: "#ef5350",
@@ -293,7 +294,7 @@ export default function Bills() {
           { label: "Total Bills This Month", value: totalBills },
           {
             label: "Total Predicted Amount",
-            value: `$${totalAmount.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+            value: fmt2(totalAmount),
           },
           { label: "Bills Paid So Far", value: paidCount },
         ].map(({ label, value }) => (
@@ -523,7 +524,7 @@ export default function Bills() {
                   </TableCell>
                   <TableCell align="right">
                     <Typography variant="body2" fontWeight={500}>
-                      {fmtAmount(bill.expectedAmount)}
+                      {fmt2(bill.expectedAmount)}
                     </Typography>
                     {bill.amountVariable && (
                       <Typography variant="caption" color="warning.main">
@@ -635,15 +636,5 @@ export default function Bills() {
         onSave={handleSaveLinks}
       />
     </Box>
-  );
-}
-
-function fmtAmount(n) {
-  return (
-    "$" +
-    (Number(n) || 0).toLocaleString("en-US", {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    })
   );
 }

@@ -41,14 +41,7 @@ import { useRecurring } from "../../services/useRecurring";
 import SubscriptionDialog from "./SubscriptionDialog";
 import LinkTransactionsDialog from "./LinkTransactionsDialog";
 import BrandLogo from "./BrandLogo";
-
-const fmt = (n) =>
-  "$" +
-  (Number(n) || 0).toLocaleString("en-US", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
-const fmt0 = (n) => "$" + Math.round(Number(n) || 0).toLocaleString("en-US");
+import { fmt, fmt2 } from "../../utils/format";
 
 const CYCLE_SHORT = {
   daily: "day",
@@ -74,11 +67,11 @@ const isActive = (s) => s.status !== "cancelled" && s.status !== "paused";
 
 function TotalsStrip({ monthly, yearly, activeCount, budget, remaining }) {
   const cards = [
-    { label: "Monthly", value: fmt(monthly) },
-    { label: "Yearly", value: fmt0(yearly) },
+    { label: "Monthly", value: fmt2(monthly) },
+    { label: "Yearly", value: fmt(yearly) },
     {
       label: "Budget remaining",
-      value: budget > 0 ? fmt(remaining) : "—",
+      value: budget > 0 ? fmt2(remaining) : "—",
       color: budget > 0 && remaining < 0 ? "error.main" : "success.main",
     },
     { label: "Active subs", value: activeCount },
@@ -145,7 +138,7 @@ function SubCard({ sub, onEdit, onDelete, onLink }) {
         </Box>
 
         <Typography variant="h5" fontWeight={700}>
-          {fmt(sub.expectedAmount)}
+          {fmt2(sub.expectedAmount)}
           <Typography component="span" variant="body2" color="text.secondary">
             {" "}
             / {cycle}
@@ -153,7 +146,7 @@ function SubCard({ sub, onEdit, onDelete, onLink }) {
         </Typography>
         {showMonthlyEq && (
           <Typography variant="caption" color="text.secondary">
-            ≈ {fmt(sub.monthlyEquivalent)}/mo
+            ≈ {fmt2(sub.monthlyEquivalent)}/mo
           </Typography>
         )}
 
@@ -436,7 +429,7 @@ export default function SubscriptionDashboard() {
               <Chip
                 key={c.key}
                 icon={<TrackIcon />}
-                label={`${c.name} · ${fmt(c.expectedAmount)}${c.suggestion ? " · suggested" : ""}`}
+                label={`${c.name} · ${fmt2(c.expectedAmount)}${c.suggestion ? " · suggested" : ""}`}
                 onClick={() => handleTrack(c)}
                 variant="outlined"
                 color={c.suggestion ? "default" : "primary"}
@@ -507,7 +500,7 @@ export default function SubscriptionDashboard() {
                     </Box>
                   </TableCell>
                   <TableCell>{s.nextPredictedDate}</TableCell>
-                  <TableCell align="right">{fmt(s.expectedAmount)}</TableCell>
+                  <TableCell align="right">{fmt2(s.expectedAmount)}</TableCell>
                 </TableRow>
               ))
             )}

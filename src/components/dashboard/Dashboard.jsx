@@ -40,6 +40,7 @@ import {
   getMaxSpendValue,
   MAX_SPEND_VALUE_UPDATED_EVENT,
 } from "../../services/finance-service";
+import { fmt, compactMoney } from "../../utils/format";
 
 const MONTH_NAMES = [
   "January",
@@ -68,7 +69,6 @@ function displayMonthNumber(dm) {
   return idx >= 0 ? idx + 1 : null;
 }
 
-const fmt = (n) => "$" + Math.round(n || 0).toLocaleString("en-US");
 
 // ─── Budget Card ─────────────────────────────────────────────────────────────
 function BudgetCard({
@@ -495,7 +495,7 @@ function SpendingChart({
               interval={6}
             />
             <YAxis
-              tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`}
+              tickFormatter={compactMoney}
               tick={{ fontSize: 11, fill: theme.palette.text.secondary }}
               tickLine={false}
               axisLine={false}

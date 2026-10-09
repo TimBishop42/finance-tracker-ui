@@ -41,7 +41,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { useKidsWealth } from "../../services/useKidsWealth";
-import { fmt, fmt2, pct, compact } from "./wealthFormat";
+import { fmt, fmt2, pct, compact } from "../../utils/format";
 import Kpi from "./Kpi";
 import TradeDialog from "./TradeDialog";
 

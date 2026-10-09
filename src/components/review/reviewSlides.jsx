@@ -25,15 +25,8 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import {
-  fmt,
-  fmt2,
-  pct,
-  compact,
-  monthLong,
-  classLabel,
-  classColor,
-} from "../wealth/wealthFormat";
+import { fmt, fmt2, pct, compact, monthLong } from "../../utils/format";
+import { classLabel, classColor } from "../wealth/wealthFormat";
 import { AllocationHistoryChart } from "../wealth/WealthCharts";
 import useCountUp, { useReducedMotion } from "./useCountUp";
 

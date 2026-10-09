@@ -38,26 +38,8 @@ import {
 } from "recharts";
 import { useSalaryHistory } from "../../services/useSalaryHistory";
 import { calcTakeHome, perPeriod, mlsThresholds } from "../../services/auTax";
+import { fmt, fmt2, compactMoney, todayIso } from "../../utils/format";
 
-const currency = new Intl.NumberFormat("en-AU", {
-  style: "currency",
-  currency: "AUD",
-  maximumFractionDigits: 0,
-});
-const currency2 = new Intl.NumberFormat("en-AU", {
-  style: "currency",
-  currency: "AUD",
-  maximumFractionDigits: 2,
-});
-const fmt = (n) => currency.format(Number.isFinite(n) ? n : 0);
-const fmt2 = (n) => currency2.format(Number.isFinite(n) ? n : 0);
-const compact = (n) => {
-  const v = Number(n) || 0;
-  if (Math.abs(v) >= 1_000_000) return `$${(v / 1_000_000).toFixed(1)}M`;
-  if (Math.abs(v) >= 1_000) return `$${Math.round(v / 1_000)}k`;
-  return `$${Math.round(v)}`;
-};
-const todayIso = () => new Date().toISOString().slice(0, 10);
 const fmtMonthYear = (iso) => {
   const d = new Date(`${iso}T00:00:00`);
   return isNaN(d.getTime())
@@ -200,7 +182,7 @@ function SalaryHistoryTab({ history }) {
               >
                 <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
                 <XAxis dataKey="label" />
-                <YAxis tickFormatter={compact} width={56} />
+                <YAxis tickFormatter={compactMoney} width={56} />
                 <Tooltip
                   formatter={(value, name, props) => {
                     const pct = props?.payload?.changePct;

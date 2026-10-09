@@ -16,7 +16,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { fmt, share, compact, monthShort, monthLong } from "./wealthFormat";
+import { fmt, share, compact, monthShort, monthLong } from "../../utils/format";
 
 // Presentation for the Total Wealth time series. Shared axis/grid/tooltip
 // styling lives here so the charts read as one system rather than three

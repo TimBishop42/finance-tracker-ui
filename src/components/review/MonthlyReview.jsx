@@ -20,7 +20,7 @@ import {
   PlayArrow,
 } from "@mui/icons-material";
 import { getMonthlyReview } from "../../services/finance-service";
-import { monthLong } from "../wealth/wealthFormat";
+import { monthLong } from "../../utils/format";
 import { buildSlides, importedUpTo } from "./reviewSlides";
 import { useReducedMotion } from "./useCountUp";
 

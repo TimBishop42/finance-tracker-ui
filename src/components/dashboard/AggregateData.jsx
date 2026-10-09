@@ -45,6 +45,7 @@ import { getMaxSpendValue } from "../../services/finance-service";
 import { useTransactions } from "../../services/useTransactions";
 import TransactionTable from "../transactions/TransactionTable";
 import TransactionEditDialog from "../transactions/TransactionEditDialog";
+import { fmt, fmt2, compactMoney } from "../../utils/format";
 
 const MONTHS_UPPER = [
   "JANUARY",
@@ -82,13 +83,6 @@ function monthNumberOf(m) {
   const idx = MONTHS_UPPER.indexOf(String(raw).toUpperCase());
   return idx >= 0 ? idx + 1 : null;
 }
-
-const fmt = (n) =>
-  "$" +
-  (n || 0).toLocaleString("en-US", {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  });
 
 const budgetColor = (pct) => {
   if (pct <= 75) return "success";
@@ -590,7 +584,7 @@ function MonthlyTab({ maxSpendValue }) {
                   tick={{ fontSize: 12, fill: theme.palette.text.secondary }}
                 />
                 <YAxis
-                  tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`}
+                  tickFormatter={compactMoney}
                   tick={{ fontSize: 12, fill: theme.palette.text.secondary }}
                   axisLine={false}
                   tickLine={false}
@@ -1011,17 +1005,17 @@ function YearOverYearTab() {
         {[
           {
             label: `${currentYear} to date`,
-            value: `$${data.thisYearTotal.toLocaleString()}`,
+            value: fmt2(data.thisYearTotal),
             color: theme.palette.primary.main,
           },
           {
             label: `${lastYear} same period`,
-            value: `$${data.lastYearTotal.toLocaleString()}`,
+            value: fmt2(data.lastYearTotal),
             color: theme.palette.text.secondary,
           },
           {
             label: "YoY change",
-            value: `${totalDelta >= 0 ? "+" : ""}$${totalDelta.toLocaleString()} (${totalDeltaPct}%)`,
+            value: `${totalDelta >= 0 ? "+" : ""}${fmt2(totalDelta)} (${totalDeltaPct}%)`,
             color: totalDelta <= 0 ? DELTA_GREEN : DELTA_RED,
           },
         ].map((card) => (
@@ -1071,7 +1065,7 @@ function YearOverYearTab() {
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis
               type="number"
-              tickFormatter={(v) => `$${v.toLocaleString()}`}
+              tickFormatter={fmt}
             />
             <YAxis
               dataKey="category"
@@ -1080,7 +1074,7 @@ function YearOverYearTab() {
               tick={{ fill: theme.palette.text.primary, fontSize: 12 }}
             />
             <Tooltip
-              formatter={(value, name) => [`$${value.toLocaleString()}`, name]}
+              formatter={(value, name) => [fmt2(value), name]}
             />
             <Legend />
             <Bar
@@ -1142,9 +1136,9 @@ function YearOverYearTab() {
               <React.Fragment key={row.category}>
                 {[
                   row.category,
-                  `$${row.thisYear.toLocaleString()}`,
-                  `$${row.lastYear.toLocaleString()}`,
-                  `${row.delta >= 0 ? "+" : ""}$${row.delta.toLocaleString()}`,
+                  fmt2(row.thisYear),
+                  fmt2(row.lastYear),
+                  `${row.delta >= 0 ? "+" : ""}${fmt2(row.delta)}`,
                   null,
                 ].map((cell, ci) => (
                   <Box
