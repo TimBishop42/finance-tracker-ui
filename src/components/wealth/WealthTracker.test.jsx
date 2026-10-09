@@ -25,15 +25,6 @@ const snap = (date, breakdown) => ({
   breakdown,
 });
 
-// recharts' ResponsiveContainer needs ResizeObserver, which jsdom lacks.
-beforeAll(() => {
-  global.ResizeObserver = class {
-    observe() {}
-    unobserve() {}
-    disconnect() {}
-  };
-});
-
 const SUMMARY = {
   displayCurrency: "AUD",
   netWorth: 2350,

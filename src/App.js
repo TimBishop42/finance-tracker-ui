@@ -15,6 +15,7 @@ import SuperTracker from "./components/super/SuperTracker";
 import SalaryTracker from "./components/salary/SalaryTracker";
 import WealthTracker from "./components/wealth/WealthTracker";
 import KidsWealthTracker from "./components/wealth/KidsWealthTracker";
+import MonthlyReview from "./components/review/MonthlyReview";
 
 const THEME_STORAGE_KEY = "themeMode";
 
@@ -64,15 +65,13 @@ function App() {
         <Layout onToggleColorMode={toggleColorMode} mode={mode}>
           <Routes>
             <Route path="/" element={<Dashboard />} />
+            <Route path="/review" element={<MonthlyReview />} />
             <Route path="/add-transaction" element={<TransactionForm />} />
             <Route path="/bulk-upload" element={<TransactionUploader />} />
             <Route path="/transactions" element={<TransactionsBrowser />} />
             <Route path="/summary" element={<AggregateData />} />
             <Route path="/heatmap" element={<SpendingHeatmap />} />
-            <Route
-              path="/subscriptions"
-              element={<SubscriptionDashboard />}
-            />
+            <Route path="/subscriptions" element={<SubscriptionDashboard />} />
             <Route path="/bills" element={<Bills />} />
             {/* Legacy paths → merged Bills tab */}
             <Route path="/calendar" element={<Bills />} />

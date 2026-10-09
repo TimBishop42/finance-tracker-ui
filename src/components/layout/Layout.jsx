@@ -32,6 +32,7 @@ import {
   Payments as PaymentsIcon,
   AccountBalanceWallet as AccountBalanceWalletIcon,
   ChildCare as ChildCareIcon,
+  AutoGraph as AutoGraphIcon,
 } from "@mui/icons-material";
 import { useNavigate, useLocation } from "react-router-dom";
 import SettingsDialog from "../settings/SettingsDialog";
@@ -88,6 +89,7 @@ const DrawerHeader = styled("div")(({ theme }) => ({
 
 const menuItems = [
   { text: "Dashboard", icon: <HomeIcon />, path: "/" },
+  { text: "Monthly Review", icon: <AutoGraphIcon />, path: "/review" },
   { text: "Add Transaction", icon: <AddIcon />, path: "/add-transaction" },
   { text: "Bulk Upload", icon: <UploadIcon />, path: "/bulk-upload" },
   { text: "Transactions", icon: <ReceiptLongIcon />, path: "/transactions" },

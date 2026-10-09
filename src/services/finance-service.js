@@ -108,6 +108,15 @@ export const setCategoryBudget = async (categoryName, monthlyBudget) => {
   return response.json();
 };
 
+// month is "yyyy-MM". Resolves to the server's MonthlyReviewResponse.
+export const getMonthlyReview = async (month) => {
+  const response = await fetch(`/api/finance/review/${month}`);
+  if (!response.ok) {
+    throw new Error((await response.text()) || "Failed to load monthly review");
+  }
+  return response.json();
+};
+
 export const getMaxSpendValue = async () => {
   try {
     const response = await fetch("/api/finance/get-max-spend-value");

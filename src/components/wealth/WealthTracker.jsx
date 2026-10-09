@@ -36,7 +36,17 @@ import {
 } from "@mui/icons-material";
 import { useWealth } from "../../services/useWealth";
 import { quoteSecurity } from "../../services/finance-service";
-import { fmt, fmt2, qtyFmt, todayIso, pct, monthLong } from "./wealthFormat";
+import {
+  fmt,
+  fmt2,
+  qtyFmt,
+  todayIso,
+  pct,
+  monthLong,
+  CLASS_COLORS,
+  classLabel,
+  classColor,
+} from "./wealthFormat";
 import {
   SNAPSHOT_RANGES,
   allocationHistory,
@@ -63,26 +73,6 @@ const fmtRatio = (r) => {
   if (!Number.isFinite(v) || v <= 0) return "—";
   return v >= 1 ? `${+v.toFixed(4)}:1` : `1:${+(1 / v).toFixed(4)}`;
 };
-
-const CLASS_LABELS = {
-  CASH: "Cash & Savings",
-  SHARES: "Shares & ETFs",
-  OPTIONS: "Equity Comp",
-  SUPER: "Superannuation",
-  PROPERTY: "Property",
-  OTHER_ASSET: "Other Assets",
-  LIABILITY: "Liabilities",
-};
-const CLASS_COLORS = {
-  CASH: "#26a69a",
-  SHARES: "#42a5f5",
-  OPTIONS: "#ec407a",
-  SUPER: "#7e57c2",
-  PROPERTY: "#ef6c00",
-  OTHER_ASSET: "#8d6e63",
-  LIABILITY: "#ef5350",
-};
-const classLabel = (c) => CLASS_LABELS[c] || c;
 
 // Asset classes the user can add as plain wealth items (SHARES is derived from trades).
 const ASSET_CLASS_OPTIONS = ["CASH", "SUPER", "PROPERTY", "OTHER_ASSET"];
@@ -928,7 +918,7 @@ export default function WealthTracker() {
         name: classLabel(a.assetClass),
         value: Number(a.value) || 0,
         pct: a.pct,
-        color: CLASS_COLORS[a.assetClass] || "#90a4ae",
+        color: classColor(a.assetClass),
       })),
     [summary],
   );
@@ -1220,7 +1210,7 @@ export default function WealthTracker() {
               currency={currency}
               asPercent={allocMode === "SHARE"}
               labelFor={classLabel}
-              colorFor={(c) => CLASS_COLORS[c] || "#90a4ae"}
+              colorFor={classColor}
             />
             {allocHistory.skipped > 0 && (
               <Typography variant="caption" color="text.secondary">
