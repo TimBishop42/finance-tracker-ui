@@ -90,18 +90,42 @@ const budgetColor = (pct) => {
   return "error";
 };
 
-const CHART_COLORS = [
-  "#1976d2",
-  "#388e3c",
-  "#f57c00",
-  "#7b1fa2",
-  "#c62828",
-  "#00838f",
-  "#5d4037",
-  "#455a64",
-];
+// Each month's bar shows that month's own top N categories; the rest is "Other".
+const TOP_N = 8;
+// Distinct key so a real category called "Other" can't collide with the bucket.
+const OTHER_KEY = "__other";
+// Used until categories load, or for a category deleted after it was spent on.
+const FALLBACK_COLOR = "#757575";
 
-const TOP_N = 6;
+// Stacked-chart model. Each month carries only its own top-N categories with
+// spend > 0 (so categories join and drop out month to month) plus the
+// leftover as OTHER_KEY. `categories` is every category that made any
+// month's top N, ordered by range total so bigger ones stack lower.
+export const buildStackedChart = (months, topN = TOP_N) => {
+  const totals = {};
+  let hasOther = false;
+  const data = months.map((m) => {
+    const obj = { month: m.month };
+    let shown = 0;
+    (m.categoryValues || [])
+      .filter((c) => c.value > 0)
+      .sort((a, b) => b.value - a.value)
+      .slice(0, topN)
+      .forEach((c) => {
+        obj[c.category] = c.value;
+        shown += c.value;
+        totals[c.category] = (totals[c.category] || 0) + c.value;
+      });
+    const other = Math.max(0, (m.totalMonthlySpend || 0) - shown);
+    if (other > 0) {
+      obj[OTHER_KEY] = other;
+      hasOther = true;
+    }
+    return obj;
+  });
+  const categories = Object.keys(totals).sort((a, b) => totals[b] - totals[a]);
+  return { categories, data, hasOther };
+};
 
 // Chronological key for a DisplayMonth; the API's `month` field is a bare
 // enum name ("JULY"), not a "Jul 2026"-style string.
@@ -297,37 +321,18 @@ function MonthlyTab({ maxSpendValue }) {
     return [...cats].sort();
   }, [aggregateData]);
 
-  const topCategories = useMemo(() => {
-    const totals = {};
-    aggregateData.forEach((m) =>
-      (m.categoryValues || []).forEach((c) => {
-        totals[c.category] = (totals[c.category] || 0) + c.value;
-      }),
-    );
-    return Object.entries(totals)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, TOP_N)
-      .map(([cat]) => cat);
-  }, [aggregateData]);
+  const categoryColor = useMemo(
+    () => Object.fromEntries(categories.map((c) => [c.categoryName, c.color])),
+    [categories],
+  );
 
-  const stackedChartData = useMemo(() => {
-    return [...aggregateData]
-      .sort((a, b) => monthKey(a) - monthKey(b))
-      .map((m) => {
-        const obj = { month: m.month };
-        let topTotal = 0;
-        topCategories.forEach((cat) => {
-          const found = (m.categoryValues || []).find(
-            (c) => c.category === cat,
-          );
-          obj[cat] = found ? found.value : 0;
-          topTotal += obj[cat];
-        });
-        const other = Math.max(0, m.totalMonthlySpend - topTotal);
-        if (other > 0) obj["Other"] = other;
-        return obj;
-      });
-  }, [aggregateData, topCategories]);
+  const stacked = useMemo(
+    () =>
+      buildStackedChart(
+        [...aggregateData].sort((a, b) => monthKey(a) - monthKey(b)),
+      ),
+    [aggregateData],
+  );
 
   // ---- Category breakdown table ----
   const monthsAsc = useMemo(
@@ -560,22 +565,20 @@ function MonthlyTab({ maxSpendValue }) {
       </Box>
 
       {/* Top categories stacked bar chart */}
-      {stackedChartData.length > 0 && (
+      {stacked.data.length > 0 && (
         <Box sx={{ mb: 5 }}>
           <Typography variant="subtitle1" fontWeight={700} gutterBottom>
             Top Spending Categories — Month over Month
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            Top {Math.min(TOP_N, topCategories.length)} categories by total
-            spend
-            {allCategories.length > TOP_N
-              ? `, all remaining grouped as "Other"`
-              : ""}
+            Each month&apos;s top {TOP_N} categories; every category keeps its
+            own colour
+            {stacked.hasOther ? `, everything else grouped as "Other"` : ""}
           </Typography>
           <Box sx={{ height: 320 }}>
             <ResponsiveContainer width="100%" height="100%">
               <BarChart
-                data={stackedChartData}
+                data={stacked.data}
                 margin={{ top: 10, right: 30, left: 20, bottom: 5 }}
               >
                 <CartesianGrid strokeDasharray="3 3" vertical={false} />
@@ -610,26 +613,20 @@ function MonthlyTab({ maxSpendValue }) {
                     fill: theme.palette.error.main,
                   }}
                 />
-                {topCategories.map((cat, i) => (
+                {stacked.categories.map((cat) => (
                   <Bar
                     key={cat}
                     dataKey={cat}
                     stackId="stack"
-                    fill={CHART_COLORS[i % CHART_COLORS.length]}
-                    radius={
-                      i === topCategories.length - 1 &&
-                      allCategories.length <= TOP_N
-                        ? [3, 3, 0, 0]
-                        : [0, 0, 0, 0]
-                    }
+                    fill={categoryColor[cat] || FALLBACK_COLOR}
                   />
                 ))}
-                {allCategories.length > TOP_N && (
+                {stacked.hasOther && (
                   <Bar
-                    dataKey="Other"
+                    dataKey={OTHER_KEY}
+                    name="Other"
                     stackId="stack"
                     fill="#bdbdbd"
-                    radius={[3, 3, 0, 0]}
                   />
                 )}
               </BarChart>

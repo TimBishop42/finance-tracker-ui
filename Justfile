@@ -2,7 +2,7 @@
 
 # Build Docker image
 build:
-    docker build -t finance-ui .
+    docker build --platform linux/amd64 -t finance-ui .
 
 # Tag Docker image
 tag:
